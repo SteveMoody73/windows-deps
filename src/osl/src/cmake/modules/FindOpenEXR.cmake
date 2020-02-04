@@ -60,7 +60,11 @@ find_path (OPENEXR_INCLUDE_PATH OpenEXR/OpenEXRConfig.h
 find_path (OPENEXR_INCLUDE_PATH OpenEXR/OpenEXRConfig.h)
 
 # Try to figure out version number
-if (EXISTS "${OPENEXR_INCLUDE_PATH}/OpenEXR/ImfMultiPartInputFile.h")
+if (DEFINED _OPENEXR_VERSION AND NOT "${_OPENEXR_VERSION}" STREQUAL "")
+    set (OPENEXR_VERSION "${_OPENEXR_VERSION}")
+    string (REGEX REPLACE "([0-9]+)\\.[0-9]+" "\\1" OPENEXR_VERSION_MAJOR "${_OPENEXR_VERSION}")
+    string (REGEX REPLACE "[0-9]+\\.([0-9]+)" "\\1" OPENEXR_VERSION_MINOR "${_OPENEXR_VERSION}")
+elseif (EXISTS "${OPENEXR_INCLUDE_PATH}/OpenEXR/ImfMultiPartInputFile.h")
     # Must be at least 2.0
     file(STRINGS "${OPENEXR_INCLUDE_PATH}/OpenEXR/OpenEXRConfig.h" TMP REGEX "^#define OPENEXR_VERSION_STRING .*$")
     string (REGEX MATCHALL "[0-9]+[.0-9]+" OPENEXR_VERSION ${TMP})
@@ -108,18 +112,23 @@ endif ()
 # headers, we do two finds -- first for custom locations, then for default.
 # This is complicated because the OpenEXR libraries may or may not be
 # built with version numbers embedded.
+
+IF(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    SET(LIB_SUFFIX "_d")
+ENDIF()
+
 set (_openexr_components IlmThread IlmImf Imath Iex Half)
 foreach (COMPONENT ${_openexr_components})
     string (TOUPPER ${COMPONENT} UPPERCOMPONENT)
     # First try with the version embedded
-    set (FULL_COMPONENT_NAME ${COMPONENT}-${OPENEXR_VERSION_MAJOR}_${OPENEXR_VERSION_MINOR})
+    set (FULL_COMPONENT_NAME ${COMPONENT}-${OPENEXR_VERSION_MAJOR}_${OPENEXR_VERSION_MINOR}${LIB_SUFFIX})
     find_library (OPENEXR_${UPPERCOMPONENT}_LIBRARY ${FULL_COMPONENT_NAME}
                   PATHS ${OPENEXR_LIBRARY_DIR}
                         ${GENERIC_LIBRARY_PATHS} NO_DEFAULT_PATH)
     # Again, with no directory restrictions
     find_library (OPENEXR_${UPPERCOMPONENT}_LIBRARY ${FULL_COMPONENT_NAME})
     # Try again without the version
-    set (FULL_COMPONENT_NAME ${COMPONENT})
+    set (FULL_COMPONENT_NAME ${COMPONENT}${LIB_SUFFIX})
     find_library (OPENEXR_${UPPERCOMPONENT}_LIBRARY ${FULL_COMPONENT_NAME}
                   PATHS ${OPENEXR_LIBRARY_DIR}
                         ${GENERIC_LIBRARY_PATHS} NO_DEFAULT_PATH)
