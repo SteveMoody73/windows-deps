@@ -98,11 +98,10 @@ set redirect=^>^> BUILDLOG.txt 2^>^&1
 mkdir %root%build\%platform% 2>nul
 type nul > %root%build\%platform%\BUILDLOG.txt
 
-
 REM ===============================================================================
 
 :xercesc
-echo %time% ^| [ 1/15] Building Xerces-C...
+echo %time% ^| [ 1/17] Building Xerces-C...
 
     mkdir %root%build\%platform%\xerces-c-debug 2>nul
     pushd %root%build\%platform%\xerces-c-debug
@@ -125,7 +124,7 @@ echo %time% ^| [ 1/15] Building Xerces-C...
 REM ===============================================================================
 
 :llvm
-echo %time% ^| [ 2/15] Building LLVM...
+echo %time% ^| [ 2/17] Building LLVM...
 
     mkdir %root%build\%platform%\llvm-debug 2>nul
     pushd %root%build\%platform%\llvm-debug
@@ -148,7 +147,7 @@ echo %time% ^| [ 2/15] Building LLVM...
 REM ===============================================================================
 
 :zlib
-echo %time% ^| [ 3/15] Building zlib...
+echo %time% ^| [ 3/17] Building zlib...
 
     mkdir %root%build\%platform%\zlib-debug 2>nul
     pushd %root%build\%platform%\zlib-debug
@@ -173,7 +172,7 @@ echo %time% ^| [ 3/15] Building zlib...
 REM ===============================================================================
 
 :libpng
-echo %time% ^| [ 4/15] Building libpng...
+echo %time% ^| [ 4/17] Building libpng...
 
     mkdir %root%build\%platform%\libpng-debug 2>nul
     pushd %root%build\%platform%\libpng-debug
@@ -196,7 +195,7 @@ echo %time% ^| [ 4/15] Building libpng...
 REM ===============================================================================
 
 :libjpeg
-echo %time% ^| [ 5/15] Building libjpeg-turbo...
+echo %time% ^| [ 5/17] Building libjpeg-turbo...
 
     mkdir %root%build\%platform%\libjpeg-turbo-debug 2>nul
     pushd %root%build\%platform%\libjpeg-turbo-debug
@@ -220,7 +219,7 @@ echo %time% ^| [ 5/15] Building libjpeg-turbo...
 REM ===============================================================================
 
 :libtiff
-echo %time% ^| [ 6/15] Building libtiff...
+echo %time% ^| [ 6/17] Building libtiff...
 
     mkdir %root%build\%platform%\libtiff-debug 2>nul
     pushd %root%build\%platform%\libtiff-debug
@@ -253,7 +252,7 @@ echo %time% ^| [ 6/15] Building libtiff...
 REM ===============================================================================
 
 :openexr
-echo %time% ^| [ 7/15] Building OpenEXR...
+echo %time% ^| [ 7/17] Building OpenEXR...
 
     mkdir %root%build\%platform%\openexr-debug 2>nul
     pushd %root%build\%platform%\openexr-debug
@@ -279,7 +278,7 @@ echo %time% ^| [ 7/15] Building OpenEXR...
 REM ===============================================================================
 
 :ocio
-echo %time% ^| [ 8/15] Building OpenColorIO...
+echo %time% ^| [ 8/17] Building OpenColorIO...
 
     set OCIO_PATH_SAVE=%PATH%
     set PATH=%root%tools\patch;%PATH%
@@ -311,7 +310,7 @@ echo %time% ^| [ 8/15] Building OpenColorIO...
 REM ===============================================================================
 
 :oiio
-echo %time% ^| [ 9/15] Building OpenImageIO...
+echo %time% ^| [ 9/17] Building OpenImageIO...
 
     mkdir %root%build\%platform%\oiio-debug 2>nul
     pushd %root%build\%platform%\oiio-debug
@@ -335,7 +334,7 @@ echo %time% ^| [ 9/15] Building OpenImageIO...
 REM ===============================================================================
 
 :osl
-echo %time% ^| [10/15] Building OpenShadingLanguage...
+echo %time% ^| [10/17] Building OpenShadingLanguage...
 
     set OSL_PATH_SAVE=%PATH%
 
@@ -367,7 +366,7 @@ echo %time% ^| [10/15] Building OpenShadingLanguage...
 REM ===============================================================================
 
 :seexpr
-echo %time% ^| [11/15] Building SeExpr...
+echo %time% ^| [11/17] Building SeExpr...
     mkdir %root%build\%platform%\seexpr-debug 2>nul
     pushd %root%build\%platform%\seexpr-debug
         echo === SeExpr (Debug) ============================================================ > BUILDLOG.txt
@@ -398,7 +397,7 @@ echo %time% ^| [11/15] Building SeExpr...
 REM ===============================================================================
 
 :tbb
-echo %time% ^| [12/15] Building TBB...
+echo %time% ^| [12/17] Building TBB...
 
    mkdir %root%build\%platform%\tbb-debug 2>nul
    pushd %root%build\%platform%\tbb-debug
@@ -423,7 +422,7 @@ echo %time% ^| [12/15] Building TBB...
 REM ===============================================================================
 
 :embree
-echo %time% ^| [13/15] Building Embree...
+echo %time% ^| [13/17] Building Embree...
 
     mkdir %root%build\%platform%\embree-debug 2>nul
     pushd %root%build\%platform%\embree-debug
@@ -450,7 +449,7 @@ echo %time% ^| [13/15] Building Embree...
             REM The CMake argument
             REM   -DCMAKE_CXX_FLAGS="-d2SSAOptimizer-"
             REM is required to work around a bug in the new SSA optimizer introduced in VS 2015:
-            REM https://github.com/embree/embree/issues/157#issuecomment-334696351
+            REM https://github.com/embree/embree/issues/177#issuecomment-334696351
             cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DEMBREE_STATIC_LIB=ON -DEMBREE_TUTORIALS=OFF -DEMBREE_RAY_MASK=ON -DEMBREE_TASKING_SYSTEM=INTERNAL -DEMBREE_ISPC_SUPPORT=OFF -DCMAKE_CXX_FLAGS="-d2SSAOptimizer-" -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\embree-release %src%\embree %redirect%
         ) else (
             cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DEMBREE_STATIC_LIB=ON -DEMBREE_TUTORIALS=OFF -DEMBREE_RAY_MASK=ON -DEMBREE_TASKING_SYSTEM=INTERNAL -DEMBREE_ISPC_SUPPORT=OFF -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\embree-release %src%\embree %redirect%
@@ -463,7 +462,7 @@ echo %time% ^| [13/15] Building Embree...
 REM ===============================================================================
 
 :lz4
-echo %time% ^| [14/15] Building lz4...
+echo %time% ^| [14/17] Building lz4...
 
     mkdir %root%build\%platform%\lz4-debug 2>nul
     pushd %root%build\%platform%\lz4-debug
@@ -486,7 +485,7 @@ echo %time% ^| [14/15] Building lz4...
 REM ===============================================================================
 
 :oidn
-echo %time% ^| [15/15] Building OpenImageDenoise...
+echo %time% ^| [15/17] Building OpenImageDenoise...
 
     mkdir %root%build\%platform%\oidn-debug 2>nul
     pushd %root%build\%platform%\oidn-debug
@@ -505,6 +504,52 @@ echo %time% ^| [15/15] Building OpenImageDenoise...
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
 :end_oidn
+
+REM ===============================================================================
+
+:blosc
+echo %time% ^| [16/17] Building Blosc...
+
+    mkdir %root%build\%platform%\blosc-debug 2>nul
+    pushd %root%build\%platform%\blosc-debug
+        echo === Blosc (Debug) ================================================== > BUILDLOG.txt
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Debug -DBUILD_STATIC=ON -DBUILD_SHARED=OFF -DBUILD_TESTS=OFF -DBUILD_BENCHMARKS=OFF -DPREFER_EXTERNAL_ZLIB=ON -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-debug\lib\zlibstaticd.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\blosc-debug %src%\blosc %redirect%
+        %devenv% blosc.sln /build Debug /project INSTALL %redirect%
+        copy blosc\blosc_static.dir\Debug\*.pdb %root%stage\%platform%\blosc-debug\lib %redirect%
+        type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
+    popd
+
+    mkdir %root%build\%platform%\blosc-release 2>nul
+    pushd %root%build\%platform%\blosc-release
+        echo === Blosc (Release) ================================================ > BUILDLOG.txt
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DBUILD_STATIC=ON -DBUILD_SHARED=OFF -DBUILD_TESTS=OFF -DBUILD_BENCHMARKS=OFF -DPREFER_EXTERNAL_ZLIB=ON -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstaticd.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\blosc-release %src%\blosc %redirect%
+        %devenv% blosc.sln /build Release /project INSTALL %redirect%
+        type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
+    popd
+:end_blosc
+
+REM ===============================================================================
+
+:openvdb
+echo %time% ^| [17/17] Building OpenVDB...
+
+    mkdir %root%build\%platform%\openvdb-debug 2>nul
+    pushd %root%build\%platform%\openvdb-debug
+        echo === OpenVDB (Debug) ================================================== > BUILDLOG.txt
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Debug -DOPENVDB_CORE_SHARED=OFF -DOPENVDB_CORE_STATIC=ON -DUSE_EXR=ON -DOPENVDB_BUILD_VDB_PRINT=OFF -DBOOST_ROOT=%boost_root% -DTBB_ROOT=%root_fwd_slashes%stage/%platform%/tbb-debug -DILMBASE_ROOT_DIR=%root%stage\%platform%\ilmbase-debug -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-debug -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-debug\lib\zlibstaticd.lib -DBlosc_INCLUDE_DIR=%root%stage\%platform%\blosc-debug\include -DBlosc_LIBRARY=%root%stage\%platform%\blosc-debug\lib\libblosc.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\openvdb-debug %src%\openvdb %redirect%
+        %devenv% OpenVDB.sln /build Debug /project INSTALL %redirect%
+        copy openvdb\openvdb_static.dir\Debug\*.pdb %root%stage\%platform%\openvdb-debug\lib %redirect%
+        type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
+    popd
+
+    mkdir %root%build\%platform%\openvdb-release 2>nul
+    pushd %root%build\%platform%\openvdb-release
+        echo === OpenVDB (Release) ================================================ > BUILDLOG.txt
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DOPENVDB_CORE_SHARED=OFF -DOPENVDB_CORE_STATIC=ON -DUSE_EXR=ON -DOPENVDB_BUILD_VDB_PRINT=OFF -DBOOST_ROOT=%boost_root% -DTBB_ROOT=%root_fwd_slashes%stage/%platform%/tbb-release -DILMBASE_ROOT_DIR=%root%stage\%platform%\ilmbase-release -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-release -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstaticd.lib -DBlosc_INCLUDE_DIR=%root%stage\%platform%\blosc-release\include -DBlosc_LIBRARY=%root%stage\%platform%\blosc-release\lib\libblosc.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\openvdb-release %src%\openvdb %redirect%
+        %devenv% OpenVDB.sln /build Release /project INSTALL %redirect%
+        type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
+    popd
+:end_openvdb
 
 REM ===============================================================================
 
