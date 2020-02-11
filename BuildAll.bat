@@ -101,7 +101,7 @@ type nul > %root%build\%platform%\BUILDLOG.txt
 REM ===============================================================================
 
 :xercesc
-echo %time% ^| [ 1/17] Building Xerces-C...
+echo %time% ^| [ 1/18] Building Xerces-C...
 
     mkdir %root%build\%platform%\xerces-c-debug 2>nul
     pushd %root%build\%platform%\xerces-c-debug
@@ -124,7 +124,7 @@ echo %time% ^| [ 1/17] Building Xerces-C...
 REM ===============================================================================
 
 :llvm
-echo %time% ^| [ 2/17] Building LLVM...
+echo %time% ^| [ 2/18] Building LLVM...
 
     mkdir %root%build\%platform%\llvm-debug 2>nul
     pushd %root%build\%platform%\llvm-debug
@@ -147,7 +147,7 @@ echo %time% ^| [ 2/17] Building LLVM...
 REM ===============================================================================
 
 :zlib
-echo %time% ^| [ 3/17] Building zlib...
+echo %time% ^| [ 3/18] Building zlib...
 
     mkdir %root%build\%platform%\zlib-debug 2>nul
     pushd %root%build\%platform%\zlib-debug
@@ -172,7 +172,7 @@ echo %time% ^| [ 3/17] Building zlib...
 REM ===============================================================================
 
 :libpng
-echo %time% ^| [ 4/17] Building libpng...
+echo %time% ^| [ 4/18] Building libpng...
 
     mkdir %root%build\%platform%\libpng-debug 2>nul
     pushd %root%build\%platform%\libpng-debug
@@ -195,7 +195,7 @@ echo %time% ^| [ 4/17] Building libpng...
 REM ===============================================================================
 
 :libjpeg
-echo %time% ^| [ 5/17] Building libjpeg-turbo...
+echo %time% ^| [ 5/18] Building libjpeg-turbo...
 
     mkdir %root%build\%platform%\libjpeg-turbo-debug 2>nul
     pushd %root%build\%platform%\libjpeg-turbo-debug
@@ -219,7 +219,7 @@ echo %time% ^| [ 5/17] Building libjpeg-turbo...
 REM ===============================================================================
 
 :libtiff
-echo %time% ^| [ 6/17] Building libtiff...
+echo %time% ^| [ 6/18] Building libtiff...
 
     mkdir %root%build\%platform%\libtiff-debug 2>nul
     pushd %root%build\%platform%\libtiff-debug
@@ -252,7 +252,7 @@ echo %time% ^| [ 6/17] Building libtiff...
 REM ===============================================================================
 
 :openexr
-echo %time% ^| [ 7/17] Building OpenEXR...
+echo %time% ^| [ 7/18] Building OpenEXR...
 
     mkdir %root%build\%platform%\openexr-debug 2>nul
     pushd %root%build\%platform%\openexr-debug
@@ -278,7 +278,7 @@ echo %time% ^| [ 7/17] Building OpenEXR...
 REM ===============================================================================
 
 :ocio
-echo %time% ^| [ 8/17] Building OpenColorIO...
+echo %time% ^| [ 8/18] Building OpenColorIO...
 
     set OCIO_PATH_SAVE=%PATH%
     set PATH=%root%tools\patch;%PATH%
@@ -310,7 +310,7 @@ echo %time% ^| [ 8/17] Building OpenColorIO...
 REM ===============================================================================
 
 :oiio
-echo %time% ^| [ 9/17] Building OpenImageIO...
+echo %time% ^| [ 9/18] Building OpenImageIO...
 
     mkdir %root%build\%platform%\oiio-debug 2>nul
     pushd %root%build\%platform%\oiio-debug
@@ -334,7 +334,7 @@ echo %time% ^| [ 9/17] Building OpenImageIO...
 REM ===============================================================================
 
 :osl
-echo %time% ^| [10/17] Building OpenShadingLanguage...
+echo %time% ^| [10/18] Building OpenShadingLanguage...
 
     set OSL_PATH_SAVE=%PATH%
 
@@ -366,7 +366,7 @@ echo %time% ^| [10/17] Building OpenShadingLanguage...
 REM ===============================================================================
 
 :seexpr
-echo %time% ^| [11/17] Building SeExpr...
+echo %time% ^| [11/18] Building SeExpr...
     mkdir %root%build\%platform%\seexpr-debug 2>nul
     pushd %root%build\%platform%\seexpr-debug
         echo === SeExpr (Debug) ============================================================ > BUILDLOG.txt
@@ -397,7 +397,7 @@ echo %time% ^| [11/17] Building SeExpr...
 REM ===============================================================================
 
 :tbb
-echo %time% ^| [12/17] Building TBB...
+echo %time% ^| [12/18] Building TBB...
 
    mkdir %root%build\%platform%\tbb-debug 2>nul
    pushd %root%build\%platform%\tbb-debug
@@ -422,7 +422,7 @@ echo %time% ^| [12/17] Building TBB...
 REM ===============================================================================
 
 :embree
-echo %time% ^| [13/17] Building Embree...
+echo %time% ^| [13/18] Building Embree...
 
     mkdir %root%build\%platform%\embree-debug 2>nul
     pushd %root%build\%platform%\embree-debug
@@ -462,7 +462,7 @@ echo %time% ^| [13/17] Building Embree...
 REM ===============================================================================
 
 :lz4
-echo %time% ^| [14/17] Building lz4...
+echo %time% ^| [14/18] Building lz4...
 
     mkdir %root%build\%platform%\lz4-debug 2>nul
     pushd %root%build\%platform%\lz4-debug
@@ -485,7 +485,7 @@ echo %time% ^| [14/17] Building lz4...
 REM ===============================================================================
 
 :oidn
-echo %time% ^| [15/17] Building OpenImageDenoise...
+echo %time% ^| [15/18] Building OpenImageDenoise...
 
     mkdir %root%build\%platform%\oidn-debug 2>nul
     pushd %root%build\%platform%\oidn-debug
@@ -508,7 +508,7 @@ echo %time% ^| [15/17] Building OpenImageDenoise...
 REM ===============================================================================
 
 :blosc
-echo %time% ^| [16/17] Building Blosc...
+echo %time% ^| [16/18] Building Blosc...
 
     mkdir %root%build\%platform%\blosc-debug 2>nul
     pushd %root%build\%platform%\blosc-debug
@@ -531,7 +531,7 @@ echo %time% ^| [16/17] Building Blosc...
 REM ===============================================================================
 
 :openvdb
-echo %time% ^| [17/17] Building OpenVDB...
+echo %time% ^| [17/18] Building OpenVDB...
 
     mkdir %root%build\%platform%\openvdb-debug 2>nul
     pushd %root%build\%platform%\openvdb-debug
@@ -550,6 +550,28 @@ echo %time% ^| [17/17] Building OpenVDB...
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
 :end_openvdb
+
+REM ===============================================================================
+
+:profiler
+echo %time% ^| [18/18] Building Easy Profiler...
+
+    mkdir %root%build\%platform%\easy_profiler-debug 2>nul
+    pushd %root%build\%platform%\easy_profiler-debug
+        echo === Easy Profiler (Debug) ================================================== > BUILDLOG.txt
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=%qt_root_path% -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\easy_profiler-debug %src%\easy_profiler %redirect%
+        %devenv% easy_profiler.sln /build Debug /project INSTALL %redirect%
+        type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
+    popd
+
+    mkdir %root%build\%platform%\easy_profiler-release 2>nul
+    pushd %root%build\%platform%\easy_profiler-release
+        echo === Easy Profiler (Release) ================================================ > BUILDLOG.txt
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%qt_root_path% -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\easy_profiler-release %src%\easy_profiler %redirect%
+        %devenv% easy_profiler.sln /build Release /project INSTALL %redirect%
+        type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
+    popd
+:end_profiler
 
 REM ===============================================================================
 
