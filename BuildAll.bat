@@ -101,7 +101,7 @@ type nul > %root%build\%platform%\BUILDLOG.txt
 REM ===============================================================================
 
 :xercesc
-echo %time% ^| [ 1/18] Building Xerces-C...
+echo %time% ^| [ 1/19] Building Xerces-C...
 
     mkdir %root%build\%platform%\xerces-c-debug 2>nul
     pushd %root%build\%platform%\xerces-c-debug
@@ -124,7 +124,7 @@ echo %time% ^| [ 1/18] Building Xerces-C...
 REM ===============================================================================
 
 :llvm
-echo %time% ^| [ 2/18] Building LLVM...
+echo %time% ^| [ 2/19] Building LLVM...
 
     mkdir %root%build\%platform%\llvm-debug 2>nul
     pushd %root%build\%platform%\llvm-debug
@@ -147,7 +147,7 @@ echo %time% ^| [ 2/18] Building LLVM...
 REM ===============================================================================
 
 :zlib
-echo %time% ^| [ 3/18] Building zlib...
+echo %time% ^| [ 3/19] Building zlib...
 
     mkdir %root%build\%platform%\zlib-debug 2>nul
     pushd %root%build\%platform%\zlib-debug
@@ -172,7 +172,7 @@ echo %time% ^| [ 3/18] Building zlib...
 REM ===============================================================================
 
 :libpng
-echo %time% ^| [ 4/18] Building libpng...
+echo %time% ^| [ 4/19] Building libpng...
 
     mkdir %root%build\%platform%\libpng-debug 2>nul
     pushd %root%build\%platform%\libpng-debug
@@ -195,7 +195,7 @@ echo %time% ^| [ 4/18] Building libpng...
 REM ===============================================================================
 
 :libjpeg
-echo %time% ^| [ 5/18] Building libjpeg-turbo...
+echo %time% ^| [ 5/19] Building libjpeg-turbo...
 
     mkdir %root%build\%platform%\libjpeg-turbo-debug 2>nul
     pushd %root%build\%platform%\libjpeg-turbo-debug
@@ -219,7 +219,7 @@ echo %time% ^| [ 5/18] Building libjpeg-turbo...
 REM ===============================================================================
 
 :libtiff
-echo %time% ^| [ 6/18] Building libtiff...
+echo %time% ^| [ 6/19] Building libtiff...
 
     mkdir %root%build\%platform%\libtiff-debug 2>nul
     pushd %root%build\%platform%\libtiff-debug
@@ -252,7 +252,7 @@ echo %time% ^| [ 6/18] Building libtiff...
 REM ===============================================================================
 
 :openexr
-echo %time% ^| [ 7/18] Building OpenEXR...
+echo %time% ^| [ 7/19] Building OpenEXR...
 
     mkdir %root%build\%platform%\openexr-debug 2>nul
     pushd %root%build\%platform%\openexr-debug
@@ -278,7 +278,7 @@ echo %time% ^| [ 7/18] Building OpenEXR...
 REM ===============================================================================
 
 :ocio
-echo %time% ^| [ 8/18] Building OpenColorIO...
+echo %time% ^| [ 8/19] Building OpenColorIO...
 
     set OCIO_PATH_SAVE=%PATH%
     set PATH=%root%tools\patch;%PATH%
@@ -310,7 +310,7 @@ echo %time% ^| [ 8/18] Building OpenColorIO...
 REM ===============================================================================
 
 :oiio
-echo %time% ^| [ 9/18] Building OpenImageIO...
+echo %time% ^| [ 9/19] Building OpenImageIO...
 
     mkdir %root%build\%platform%\oiio-debug 2>nul
     pushd %root%build\%platform%\oiio-debug
@@ -334,7 +334,7 @@ echo %time% ^| [ 9/18] Building OpenImageIO...
 REM ===============================================================================
 
 :osl
-echo %time% ^| [10/18] Building OpenShadingLanguage...
+echo %time% ^| [10/19] Building OpenShadingLanguage...
 
     set OSL_PATH_SAVE=%PATH%
 
@@ -343,7 +343,7 @@ echo %time% ^| [10/18] Building OpenShadingLanguage...
         echo === OpenShadingLanguage (Debug) =============================================== > BUILDLOG.txt
         set PATH=%root%tools\FlexBison\bin;%root%stage\%platform%\llvm-debug\bin;%OSL_PATH_SAVE%
         cmake -Wno-dev -G %generator% -DCMAKE_BUILD_TYPE=Debug -DOSL_BUILD_PLUGINS=OFF -DOSL_BUILD_TESTS=OFF -DOSL_BUILD_SHADERS=OFF -DBOOST_ROOT=%boost_root% -DBoost_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=%qt_root_path% -DBUILDSTATIC=ON -DLINKSTATIC=ON -DENABLERTTI=ON -DLLVM_STATIC=ON -DUSE_SIMD=sse2 -DUSE_PARTIO=OFF -DILMBASE_ROOT_DIR=%root%stage\%platform%\ilmbase-debug -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-debug -DOPENIMAGEIO_ROOT_DIR=%root%stage\%platform%\oiio-debug -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-debug\lib\zlibstaticd.lib -DEXTRA_CPP_ARGS="/DOIIO_STATIC_BUILD /DTINYFORMAT_ALLOW_WCHAR_STRINGS" -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\osl-debug %src%\osl %redirect%
-        %devenv% osl.sln /build Debug /project INSTALL %redirect%
+		%devenv% osl.sln /build Debug /project INSTALL %redirect%
         copy src\liboslcomp\oslcomp.dir\Debug\*.pdb %root%stage\%platform%\osl-debug\lib %redirect%
         copy src\liboslexec\oslexec.dir\Debug\*.pdb %root%stage\%platform%\osl-debug\lib %redirect%
         copy src\liboslnoise\oslnoise.dir\Debug\*.pdb %root%stage\%platform%\osl-debug\lib %redirect%
@@ -366,7 +366,7 @@ echo %time% ^| [10/18] Building OpenShadingLanguage...
 REM ===============================================================================
 
 :seexpr
-echo %time% ^| [11/18] Building SeExpr...
+echo %time% ^| [11/19] Building SeExpr...
     mkdir %root%build\%platform%\seexpr-debug 2>nul
     pushd %root%build\%platform%\seexpr-debug
         echo === SeExpr (Debug) ============================================================ > BUILDLOG.txt
@@ -397,7 +397,7 @@ echo %time% ^| [11/18] Building SeExpr...
 REM ===============================================================================
 
 :tbb
-echo %time% ^| [12/18] Building TBB...
+echo %time% ^| [12/19] Building TBB...
 
    mkdir %root%build\%platform%\tbb-debug 2>nul
    pushd %root%build\%platform%\tbb-debug
@@ -422,7 +422,7 @@ echo %time% ^| [12/18] Building TBB...
 REM ===============================================================================
 
 :embree
-echo %time% ^| [13/18] Building Embree...
+echo %time% ^| [13/19] Building Embree...
 
     mkdir %root%build\%platform%\embree-debug 2>nul
     pushd %root%build\%platform%\embree-debug
@@ -462,7 +462,7 @@ echo %time% ^| [13/18] Building Embree...
 REM ===============================================================================
 
 :lz4
-echo %time% ^| [14/18] Building lz4...
+echo %time% ^| [14/19] Building lz4...
 
     mkdir %root%build\%platform%\lz4-debug 2>nul
     pushd %root%build\%platform%\lz4-debug
@@ -485,7 +485,7 @@ echo %time% ^| [14/18] Building lz4...
 REM ===============================================================================
 
 :oidn
-echo %time% ^| [15/18] Building OpenImageDenoise...
+echo %time% ^| [15/19] Building OpenImageDenoise...
 
     mkdir %root%build\%platform%\oidn-debug 2>nul
     pushd %root%build\%platform%\oidn-debug
@@ -508,7 +508,7 @@ echo %time% ^| [15/18] Building OpenImageDenoise...
 REM ===============================================================================
 
 :blosc
-echo %time% ^| [16/18] Building Blosc...
+echo %time% ^| [16/19] Building Blosc...
 
     mkdir %root%build\%platform%\blosc-debug 2>nul
     pushd %root%build\%platform%\blosc-debug
@@ -531,7 +531,7 @@ echo %time% ^| [16/18] Building Blosc...
 REM ===============================================================================
 
 :openvdb
-echo %time% ^| [17/18] Building OpenVDB...
+echo %time% ^| [17/19] Building OpenVDB...
 
     mkdir %root%build\%platform%\openvdb-debug 2>nul
     pushd %root%build\%platform%\openvdb-debug
@@ -554,7 +554,7 @@ echo %time% ^| [17/18] Building OpenVDB...
 REM ===============================================================================
 
 :profiler
-echo %time% ^| [18/18] Building Easy Profiler...
+echo %time% ^| [18/19] Building Easy Profiler...
 
     mkdir %root%build\%platform%\easy_profiler-debug 2>nul
     pushd %root%build\%platform%\easy_profiler-debug
@@ -572,6 +572,30 @@ echo %time% ^| [18/18] Building Easy Profiler...
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
 :end_profiler
+
+REM ===============================================================================
+
+:assimp
+echo %time% ^| [19/19] Building AssImp...
+
+    mkdir %root%build\%platform%\assimp-debug 2>nul
+    pushd %root%build\%platform%\assimp-debug
+        echo === AssImp (Debug) ================================================== > BUILDLOG.txt
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=OFF -DASSIMP_BUILD_TESTS=OFF -DIGNORE_GIT_HASH=ON -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-debug\lib\zlibstaticd.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\assimp-debug %src%\assimp %redirect%
+        %devenv% assimp.sln /build Debug /project INSTALL %redirect%
+        copy code\assimp.dir\Debug\*.pdb %root%stage\%platform%\assimp-debug\lib %redirect%
+        copy contrib\irrXML\IrrXML.dir\Debug\*.pdb %root%stage\%platform%\assimp-debug\lib %redirect%
+		type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
+    popd
+
+    mkdir %root%build\%platform%\assimp-release 2>nul
+    pushd %root%build\%platform%\assimp-release
+        echo === AssImp (Release) ================================================ > BUILDLOG.txt
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DASSIMP_BUILD_TESTS=OFF -DIGNORE_GIT_HASH=ON -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\assimp-release %src%\assimp %redirect%
+        %devenv% assimp.sln /build Release /project INSTALL %redirect%
+        type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
+    popd
+:end_assimp
 
 REM ===============================================================================
 
