@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -17,7 +17,9 @@
 #pragma once
 
 #include "platform.h"
+#include "../math/vec2.h"
 #include "../math/vec3.h"
+#include "../math/vec4.h"
 
 namespace embree
 {
@@ -42,5 +44,7 @@ namespace embree
   std::string toLowerCase(const std::string& s);
   std::string toUpperCase(const std::string& s);
 
+  Vec2f string_to_Vec2f ( std::string str );
   Vec3f string_to_Vec3f ( std::string str );
+  Vec4f string_to_Vec4f ( std::string str );
 }

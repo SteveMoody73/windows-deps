@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -25,18 +25,6 @@ namespace embree
     : Geometry(device,GTY_GRID_MESH,0,1)
   {
     vertices.resize(numTimeSteps);
-  }
-
-  void GridMesh::enabling() 
-  { 
-    if (numTimeSteps == 1) scene->world.numGrids += numPrimitives;
-    else                   scene->worldMB.numGrids += numPrimitives;
-  }
-  
-  void GridMesh::disabling() 
-  { 
-    if (numTimeSteps == 1) scene->world.numGrids -= numPrimitives;
-    else                   scene->worldMB.numGrids -= numPrimitives;
   }
 
   void GridMesh::setMask (unsigned mask) 
@@ -137,19 +125,19 @@ namespace embree
     {
       if (slot != 0)
         throw_RTCError(RTC_ERROR_INVALID_ARGUMENT, "invalid buffer slot");
-      grids.setModified(true);
+      grids.setModified();
     }
     else if (type == RTC_BUFFER_TYPE_VERTEX)
     {
       if (slot >= vertices.size())
         throw_RTCError(RTC_ERROR_INVALID_ARGUMENT, "invalid buffer slot");
-      vertices[slot].setModified(true);
+      vertices[slot].setModified();
     }
     else if (type == RTC_BUFFER_TYPE_VERTEX_ATTRIBUTE)
     {
       if (slot >= vertexAttribs.size())
         throw_RTCError(RTC_ERROR_INVALID_ARGUMENT, "invalid buffer slot");
-      vertexAttribs[slot].setModified(true);
+      vertexAttribs[slot].setModified();
     }
     else
     {
@@ -159,27 +147,20 @@ namespace embree
     Geometry::update();
   }
 
-  void GridMesh::preCommit() 
+  void GridMesh::commit()
   {
     /* verify that stride of all time steps are identical */
     for (unsigned int t=0; t<numTimeSteps; t++)
       if (vertices[t].getStride() != vertices[0].getStride())
         throw_RTCError(RTC_ERROR_INVALID_OPERATION,"stride of vertex buffers have to be identical for each time step");
 
-    Geometry::preCommit();
+    Geometry::commit();
   }
-
-  void GridMesh::postCommit() 
+  
+  void GridMesh::addElementsToCount (GeometryCounts & counts) const 
   {
-    scene->vertices[geomID] = (float*) vertices0.getPtr();
-
-    grids.setModified(false);
-    for (auto& buf : vertices)
-      buf.setModified(false);
-    for (auto& attrib : vertexAttribs)
-      attrib.setModified(false);
-    
-    Geometry::postCommit();
+    if (numTimeSteps == 1) counts.numGrids += numPrimitives;
+    else                   counts.numMBGrids += numPrimitives;
   }
 
   bool GridMesh::verify() 
@@ -235,6 +216,8 @@ namespace embree
     const Grid& grid = grids[primID];
     const int grid_width  = grid.resX-1;
     const int grid_height = grid.resY-1;
+    const float rcp_grid_width = rcp(float(grid_width));
+    const float rcp_grid_height = rcp(float(grid_height));
     const int iu = min((int)floor(U*grid_width ),grid_width);
     const int iv = min((int)floor(V*grid_height),grid_height);
     const float u = U*grid_width-float(iu);
@@ -263,8 +246,8 @@ namespace embree
         vfloat4::storeu(valid,P+i,madd(W,Q0,madd(U,Q1,V*Q2)));
       }
       if (dPdu) { 
-        assert(dPdu); vfloat4::storeu(valid,dPdu+i,select(left,Q1-Q0,Q0-Q1));
-        assert(dPdv); vfloat4::storeu(valid,dPdv+i,select(left,Q2-Q0,Q0-Q2));
+        assert(dPdu); vfloat4::storeu(valid,dPdu+i,select(left,Q1-Q0,Q0-Q1)*rcp_grid_width);
+        assert(dPdv); vfloat4::storeu(valid,dPdv+i,select(left,Q2-Q0,Q0-Q2)*rcp_grid_height);
       }
       if (ddPdudu) { 
         assert(ddPdudu); vfloat4::storeu(valid,ddPdudu+i,vfloat4(zero));

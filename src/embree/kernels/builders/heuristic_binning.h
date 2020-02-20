@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -131,8 +131,10 @@ namespace embree
         enum
         {
           SPLIT_OBJECT   = 0,
-          SPLIT_TEMPORAL = 1,
-          SPLIT_FALLBACK = 2,
+          SPLIT_FALLBACK = 1,
+          SPLIT_ENFORCE  = 2, // splits with larger ID are enforced in createLargeLeaf even if we could create a leaf already
+          SPLIT_TEMPORAL = 2,
+          SPLIT_GEOMID   = 3,
         };
 
         /*! construct an invalid split by default */

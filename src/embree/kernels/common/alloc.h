@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -206,7 +206,9 @@ namespace embree
       primrefarray = std::move(primrefarray_i);
     }
 
-    void unshare(mvector<PrimRef>& primrefarray_o) {
+    void unshare(mvector<PrimRef>& primrefarray_o)
+    {
+      reset(); // this removes blocks that are allocated inside the shared primref array
       primrefarray_o = std::move(primrefarray);
     }
 

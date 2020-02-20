@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -131,4 +131,21 @@ namespace embree
     std::swap(a,b);
 #endif
   }
+
+  /************************************************************************************/
+  /************************************************************************************/
+  /************************************************************************************/
+  /************************************************************************************/
+  
+  struct SubGridBuildData {
+    unsigned short sx,sy;
+    unsigned int primID;
+    
+    __forceinline SubGridBuildData() {};
+    __forceinline SubGridBuildData(const unsigned int sx, const unsigned int sy, const unsigned int primID) : sx(sx), sy(sy), primID(primID) {};
+    
+    __forceinline size_t x() const { return (size_t)sx & 0x7fff; }
+    __forceinline size_t y() const { return (size_t)sy & 0x7fff; }
+    
+  };
 }

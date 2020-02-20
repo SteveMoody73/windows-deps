@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -99,6 +99,8 @@ namespace embree
       pixels(nullptr),
 
       outputImageFilename(""),
+      referenceImageFilename(""),
+      referenceImageThreshold(32.0f),
 
       skipBenchmarkFrames(0),
       numBenchmarkFrames(0),
@@ -150,6 +152,15 @@ namespace embree
         outputImageFilename = cin->getFileName();
         interactive = false;
       }, "-o <filename>: output image filename");
+
+    registerOption("compare", [this] (Ref<ParseStream> cin, const FileName& path) {
+        referenceImageFilename = cin->getFileName();
+        interactive = false;
+      }, "--compare <filename>: reference image to compare against");
+
+    registerOption("compare-threshold", [this] (Ref<ParseStream> cin, const FileName& path) {
+        referenceImageThreshold = cin->getFloat();
+      }, "--compare--threshold <float>: threshold in number of wrong pixels when image is considered wrong");
 
     /* camera settings */
     registerOption("vp", [this] (Ref<ParseStream> cin, const FileName& path) {
@@ -232,6 +243,11 @@ namespace embree
          debug3 = cin->getInt();
        }, "--debug3: sets internal debugging value");
 
+     registerOption("time", [this] (Ref<ParseStream> cin, const FileName& path) {
+         shader = SHADER_EYELIGHT;
+         g_debug = cin->getFloat();
+       }, "--time: sets time for motion blur");
+
     /* output filename */
     registerOption("shader", [this] (Ref<ParseStream> cin, const FileName& path) {
         std::string mode = cin->getString();
@@ -309,12 +325,12 @@ namespace embree
       grid_resY(2),
       remove_mblur(false),
       remove_non_mblur(false),
-      sceneFilename(""),
+      sceneFilename(),
       instancing_mode(SceneGraph::INSTANCING_NONE),
       print_scene_cameras(false)
   {
     registerOption("i", [this] (Ref<ParseStream> cin, const FileName& path) {
-        sceneFilename = path + cin->getFileName();
+        sceneFilename.push_back(path + cin->getFileName());
       }, "-i <filename>: parses scene from <filename>");
 
     registerOption("animlist", [this] (Ref<ParseStream> cin, const FileName& path) {
@@ -405,6 +421,10 @@ namespace embree
         grid_resY = min(max(cin->getInt(),2),0x7fff);        
       }, "--grid-res: sets tessellation resolution for the grid primitive");
 
+    registerOption("convert-mblur-to-nonmblur", [this] (Ref<ParseStream> cin, const FileName& path) {
+         sgop.push_back(CONVERT_MBLUR_TO_NONMBLUR);
+      }, "--convert-mblur-to-nonmblur: converts all motion blur geometry to non-motion blur geometry");
+    
     registerOption("remove-mblur", [this] (Ref<ParseStream> cin, const FileName& path) {
          remove_mblur = true;
       }, "--remove-mblur: removes all motion blur geometry");
@@ -551,6 +571,39 @@ namespace embree
         scene->add(SceneGraph::createSubdivSphere(p,r,numPhi,tessellationRate,new OBJMaterial));
       }, "--subdiv-sphere p.x p.y p.z r numPhi: adds a sphere at position p with radius r build of Catmull Clark subdivision surfaces. The sphere consists of numPhi x numPhi many patches and each path has the specified tessellation rate.");
 
+    registerOption("point-sphere", [this] (Ref<ParseStream> cin, const FileName& path) {
+        const Vec3fa p = cin->getVec3fa();
+        const float  r = cin->getFloat();
+        const float pointR = cin->getFloat();
+        const size_t numPhi = cin->getInt();
+        scene->add(SceneGraph::createPointSphere(p, r, pointR, numPhi, SceneGraph::SPHERE, new OBJMaterial));
+      }, "--point-sphere p.x p.y p.z r pointR numPhi: adds a sphere at position p with radius r and tesselation numPhi build of spheres.");
+
+     registerOption("point-sphere-mblur", [this] (Ref<ParseStream> cin, const FileName& path) {
+        const Vec3fa p = cin->getVec3fa();
+        const Vec3fa dp = cin->getVec3fa();
+        const float  r = cin->getFloat();
+        const float pointR = cin->getFloat();
+        const size_t numPhi = cin->getInt();
+        scene->add(SceneGraph::createPointSphere(p, r, pointR, numPhi, SceneGraph::SPHERE, new OBJMaterial)->set_motion_vector(dp));
+      }, "--point-sphere p.x p.y p.z d.x d.y d.z r pointR numPhi: adds a sphere at position p, motion vector d, with radius r and tesselation numPhi build of spheres.");
+
+    registerOption("disc-sphere", [this] (Ref<ParseStream> cin, const FileName& path) {
+        const Vec3fa p = cin->getVec3fa();
+        const float  r = cin->getFloat();
+        const float pointR = cin->getFloat();
+        const size_t numPhi = cin->getInt();
+        scene->add(SceneGraph::createPointSphere(p, r, pointR, numPhi, SceneGraph::DISC, new OBJMaterial));
+      }, "--disc-sphere p.x p.y p.z r pointR numPhi: adds a sphere at position p with radius r and tesselation numPhi build of discs.");
+
+    registerOption("oriented-disc-sphere", [this] (Ref<ParseStream> cin, const FileName& path) {
+        const Vec3fa p = cin->getVec3fa();
+        const float  r = cin->getFloat();
+        const float pointR = cin->getFloat();
+        const size_t numPhi = cin->getInt();
+        scene->add(SceneGraph::createPointSphere(p, r, pointR, numPhi, SceneGraph::ORIENTED_DISC, new OBJMaterial));
+      }, "--oriented-disc-sphere p.x p.y p.z r pointR numPhi: adds a sphere at position p with radius r and tesselation numPhi build of oriented discs.");
+
     registerOption("print-cameras", [this] (Ref<ParseStream> cin, const FileName& path) {
         print_scene_cameras = true;
       }, "--print-cameras: prints all camera names of the scene");
@@ -595,7 +648,7 @@ namespace embree
       {
         initRayStats();
         double t0 = getSeconds();
-        device_render(pixels,width,height,0.0f,ispccamera);
+        render(pixels,width,height,0.0f,ispccamera);
         double t1 = getSeconds();
         std::cout << "frame [" << std::setw(3) << i << " / " << std::setw(3) << numTotalFrames << "]: " <<  std::setw(8) << 1.0/(t1-t0) << " fps (skipped)" << std::endl << std::flush;
       }
@@ -604,7 +657,7 @@ namespace embree
       {
         initRayStats();
         double t0 = getSeconds();
-        device_render(pixels,width,height,0.0f,ispccamera);
+        render(pixels,width,height,0.0f,ispccamera);
         double t1 = getSeconds();
 
         float fps = float(1.0/(t1-t0));
@@ -654,9 +707,22 @@ namespace embree
     resize(width,height);
     ISPCCamera ispccamera = camera.getISPCCamera(width,height);
     initRayStats();
-    device_render(pixels,width,height,0.0f,ispccamera);
+    render(pixels,width,height,0.0f,ispccamera);
     Ref<Image> image = new Image4uc(width, height, (Col4uc*)pixels);
     storeImage(image, fileName);
+  }
+
+  void TutorialApplication::compareToReferenceImage(const FileName& fileName)
+  {
+    resize(width,height);
+    ISPCCamera ispccamera = camera.getISPCCamera(width,height);
+    initRayStats();
+    device_render(pixels,width,height,0.0f,ispccamera);
+    Ref<Image> image = new Image4uc(width, height, (Col4uc*)pixels);
+    Ref<Image> reference = loadImage(fileName);
+    const double error = compareImages(image,reference);
+    if (error > referenceImageThreshold) // error corresponds roughly to number of pixels that are completely off in color
+      throw std::runtime_error("reference image differs by " + std::to_string(error));
   }
 
   void TutorialApplication::set_parameter(size_t parm, ssize_t val) {
@@ -782,8 +848,8 @@ namespace embree
           break;
           
         case GLFW_KEY_C : std::cout << camera.str() << std::endl; break;
-          //case GLFW_KEY_ADD : g_debug=clamp(g_debug+0.01f); PRINT(g_debug); break;
-        case GLFW_KEY_MINUS : g_debug=clamp(g_debug-0.01f); PRINT(g_debug); break;
+        case GLFW_KEY_HOME: g_debug=clamp(g_debug+0.01f); PRINT(g_debug); break;
+        case GLFW_KEY_END : g_debug=clamp(g_debug-0.01f); PRINT(g_debug); break;
           
         case GLFW_KEY_SPACE: {
           Ref<Image> image = new Image4uc(width, height, (Col4uc*)pixels, true, "", true);
@@ -873,7 +939,7 @@ namespace embree
     /* render image using ISPC */
     initRayStats();
     double t0 = getSeconds();
-    device_render(pixels,width,height,float(time0-t0),ispccamera);
+    render(pixels,width,height,float(time0-t0),ispccamera);
     double dt0 = getSeconds()-t0;
     avg_render_time.add(dt0);
     double mrayps = double(getNumRays())/(1000000.0*dt0);
@@ -912,6 +978,19 @@ namespace embree
     
     glfwSwapBuffers(window);
 
+#ifdef __APPLE__
+    // work around glfw issue #1334
+    // https://github.com/glfw/glfw/issues/1334
+    static bool macMoved = false;
+
+    if (!macMoved) {
+      int x, y;
+      glfwGetWindowPos(window, &x, &y);
+      glfwSetWindowPos(window, ++x, y);
+      macMoved = true;
+    }
+#endif
+
     double dt1 = getSeconds()-t0;
     avg_frame_time.add(dt1);
 
@@ -941,6 +1020,10 @@ namespace embree
     resize(width,height);
     glViewport(0, 0, width, height);
     this->width = width; this->height = height;
+  }
+
+  void TutorialApplication::render(unsigned* pixels, const unsigned width, const unsigned height, const float time, const ISPCCamera& camera) {
+    device_render(pixels,width,height,time,camera);
   }
 
   void TutorialApplication::run(int argc, char** argv)
@@ -977,6 +1060,10 @@ namespace embree
     /* render to disk */
     if (outputImageFilename.str() != "")
       renderToFile(outputImageFilename);
+
+    /* compare to reference image */
+    if (referenceImageFilename.str() != "")
+      compareToReferenceImage(referenceImageFilename);
 
     /* interactive mode */
     if (interactive)
@@ -1090,12 +1177,15 @@ namespace embree
     log(1,"application start");
     
     /* load scene */
-    if (sceneFilename != "")
+    if (sceneFilename.size())
     {
-      if (toLowerCase(sceneFilename.ext()) == std::string("obj"))
-        scene->add(loadOBJ(sceneFilename,subdiv_mode != ""));
-      else if (sceneFilename.ext() != "")
-        scene->add(SceneGraph::load(sceneFilename));
+      for (auto& file : sceneFilename)
+      {
+        if (toLowerCase(file.ext()) == std::string("obj"))
+          scene->add(loadOBJ(file,subdiv_mode != ""));
+        else if (file.ext() != "")
+          scene->add(SceneGraph::load(file));
+      }
     }
 
     Application::instance->log(1,"loading scene done");
@@ -1144,6 +1234,7 @@ namespace embree
       case MERGE_QUADS_TO_GRIDS         : scene->merge_quads_to_grids(); break;
       case CONVERT_QUADS_TO_GRIDS       : scene->quads_to_grids(grid_resX,grid_resY); break;
       case CONVERT_GRIDS_TO_QUADS       : scene->grids_to_quads(); break;
+      case CONVERT_MBLUR_TO_NONMBLUR    : convert_mblur_to_nonmblur(scene.dynamicCast<SceneGraph::Node>()); break;
       default : throw std::runtime_error("unsupported scene graph operation");
       }
     }
@@ -1165,7 +1256,7 @@ namespace embree
       SceneGraph::calculateStatistics(flattened_scene.dynamicCast<SceneGraph::Node>()).print();
       std::cout << std::endl;
     }
-   
+
     /* convert model */
     obj_scene.add(flattened_scene);
     flattened_scene = nullptr;

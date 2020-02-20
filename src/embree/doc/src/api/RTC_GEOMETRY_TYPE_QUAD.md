@@ -19,7 +19,7 @@ setting an index buffer (`RTC_BUFFER_TYPE_INDEX` type) and the quad
 vertices by setting a vertex buffer (`RTC_BUFFER_TYPE_VERTEX`
 type). See `rtcSetGeometryBuffer` and `rtcSetSharedGeometryBuffer` for
 more details on how to set buffers. The index buffer contains an array
-of four 32-bit indices per quad (`RTC_FORMAT_UINT` format), and the
+of four 32-bit indices per quad (`RTC_FORMAT_UINT4` format), and the
 number of primitives is inferred from the size of that buffer. The
 vertex buffer contains an array of single precision `x`, `y`, `z`
 floating point coordinates (`RTC_FORMAT_FLOAT3` format), and the number
@@ -58,7 +58,7 @@ all these buffers must have the same stride and size.
 #### EXIT STATUS
 
 On failure `NULL` is returned and an error code is set that can be
-queried using `rtcDeviceGetError`.
+queried using `rtcGetDeviceError`.
 
 #### SEE ALSO
 

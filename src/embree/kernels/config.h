@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2016 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -27,7 +27,10 @@
 #define EMBREE_GEOMETRY_USER
 #define EMBREE_GEOMETRY_INSTANCE
 #define EMBREE_GEOMETRY_GRID
+#define EMBREE_GEOMETRY_POINT
 #define EMBREE_RAY_PACKETS
+
+#define EMBREE_CURVE_SELF_INTERSECTION_AVOIDANCE_FACTOR 2.0
 
 #if defined(EMBREE_GEOMETRY_TRIANGLE)
   #define IF_ENABLED_TRIS(x) x
@@ -41,7 +44,7 @@
   #define IF_ENABLED_QUADS(x)
 #endif
 
-#if defined(EMBREE_GEOMETRY_CURVE)
+#if defined(EMBREE_GEOMETRY_CURVE) || defined(EMBREE_GEOMETRY_POINT)
   #define IF_ENABLED_CURVES(x) x
 #else
   #define IF_ENABLED_CURVES(x)

@@ -5,7 +5,7 @@ Windows MSI Installer
 ---------------------
 
 You can install the Embree library using the Windows MSI installer
-[embree-<EMBREE_VERSION>-x64.msi](https://github.com/embree/embree/releases/download/v<EMBREE_VERSION>/embree-<EMBREE_VERSION>.x64.msi). This
+[embree-<EMBREE_VERSION>-x64.vc12.msi](https://github.com/embree/embree/releases/download/v<EMBREE_VERSION>/embree-<EMBREE_VERSION>.x64.vc12.msi). This
 will install the 64-bit Embree version by default in `Program
 Files\Intel\Embree v<EMBREE_VERSION> x64`.
 
@@ -25,13 +25,15 @@ then clicking `Programs and Features`. Select `Embree
 Windows ZIP File
 -----------------
 
-Embree is also delivered as a ZIP file
-[embree-<EMBREE_VERSION>.x64.windows.zip](https://github.com/embree/embree/releases/download/v<EMBREE_VERSION>/embree-<EMBREE_VERSION>.x64.windows.zip). After
-unpacking this ZIP file, you should set the path to the `lib` folder
-manually to your `PATH` environment variable for applications to find
-Embree. To compile applications with Embree, you also have to set the
-`Include Directories` path in Visual Studio to the `include` folder of
-the Embree installation.
+Embree linked against Visual Studio 2013
+[embree-<EMBREE_VERSION>.x64.vc12.windows.zip](https://github.com/embree/embree/releases/download/v<EMBREE_VERSION>/embree-<EMBREE_VERSION>.x64.vc12.windows.zip)
+and Visual Studio 2015
+[embree-<EMBREE_VERSION>.x64.vc14.windows.zip](https://github.com/embree/embree/releases/download/v<EMBREE_VERSION>/embree-<EMBREE_VERSION>.x64.vc14.windows.zip)
+are provided as a ZIP file. After unpacking this ZIP file, you should
+set the path to the `lib` folder manually to your `PATH` environment
+variable for applications to find Embree. To compile applications with
+Embree, you also have to set the `Include Directories` path in Visual
+Studio to the `include` folder of the Embree installation.
 
 If you plan to ship Embree with your application, best use the Embree
 version from this ZIP file.
@@ -48,9 +50,9 @@ to obtain the individual RPM files:
 To install Embree using the RPM packages on your Linux system, type
 the following:
 
-    sudo rpm --install embree-lib-<EMBREE_VERSION>-1.x86_64.rpm
-    sudo rpm --install embree-devel-<EMBREE_VERSION>-1.noarch.rpm
-    sudo rpm --install embree-examples-<EMBREE_VERSION>-1.x86_64.rpm
+    sudo rpm --install embree<EMBREE_VERSION_MAJOR>-lib-<EMBREE_VERSION>-1.x86_64.rpm
+    sudo rpm --install embree<EMBREE_VERSION_MAJOR>-devel-<EMBREE_VERSION>-1.noarch.rpm
+    sudo rpm --install embree<EMBREE_VERSION_MAJOR>-examples-<EMBREE_VERSION>-1.x86_64.rpm
 
 You also have to install the Intel® Threading Building Blocks (TBB)
 using `yum`:
@@ -62,13 +64,13 @@ filed into DEB files using the `alien` tool:
 
     sudo apt-get install alien dpkg-dev debhelper build-essential
 
-    sudo alien embree-lib-<EMBREE_VERSION>-1.x86_64.rpm
-    sudo alien embree-devel-<EMBREE_VERSION>-1.noarch.rpm
-    sudo alien embree-examples-<EMBREE_VERSION>-1.x86_64.rpm
+    sudo alien embree<EMBREE_VERSION_MAJOR>-lib-<EMBREE_VERSION>-1.x86_64.rpm
+    sudo alien embree<EMBREE_VERSION_MAJOR>-devel-<EMBREE_VERSION>-1.noarch.rpm
+    sudo alien embree<EMBREE_VERSION_MAJOR>-examples-<EMBREE_VERSION>-1.x86_64.rpm
 
-    sudo dpkg -i embree-devel_<EMBREE_VERSION>-2_all.deb
-    sudo dpkg -i embree-examples_<EMBREE_VERSION>-2_amd64.deb
-    sudo dpkg -i embree-lib_<EMBREE_VERSION>-2_amd64.deb
+    sudo dpkg -i embree<EMBREE_VERSION_MAJOR>-lib_<EMBREE_VERSION>-2_amd64.deb
+    sudo dpkg -i embree<EMBREE_VERSION_MAJOR>-devel_<EMBREE_VERSION>-2_all.deb
+    sudo dpkg -i embree<EMBREE_VERSION_MAJOR>-examples_<EMBREE_VERSION>-2_amd64.deb
 
 Also install the Intel® Threading Building Blocks (TBB) using `apt-get`:
 
@@ -94,9 +96,9 @@ the tutorials to start them.
 
 To uninstall Embree, just execute the following:
 
-    sudo rpm --erase embree-lib-<EMBREE_VERSION>-1.x86_64
-    sudo rpm --erase embree-devel-<EMBREE_VERSION>-1.noarch
-    sudo rpm --erase embree-examples-<EMBREE_VERSION>-1.x86_64
+    sudo rpm --erase embree<EMBREE_VERSION_MAJOR>-lib-<EMBREE_VERSION>-1.x86_64
+    sudo rpm --erase embree<EMBREE_VERSION_MAJOR>-devel-<EMBREE_VERSION>-1.noarch
+    sudo rpm --erase embree<EMBREE_VERSION_MAJOR>-examples-<EMBREE_VERSION>-1.x86_64
 
 Linux tar.gz Files
 ------------------
@@ -106,8 +108,8 @@ The Linux version of Embree is also delivered as a `tar.gz` file:
 are using the bash shell) or `embree-vars.csh` (if you are using the
 C shell) to set up the environment properly:
 
-    tar xzf embree-<EMBREE_VERSION>.x64.linux.tar.gz
-    source embree-<EMBREE_VERSION>.x64.linux/embree-vars.sh
+    tar xzf embree-<EMBREE_VERSION>.x86_64.linux.tar.gz
+    source embree-<EMBREE_VERSION>.x86_64.linux/embree-vars.sh
 
 If you want to ship Embree with your application, best use the Embree
 version provided in the `tar.gz` file.
@@ -120,7 +122,7 @@ macOS PKG Installer
 
 To install the Embree library on your macOS system use the
 provided package installer inside
-[embree-<EMBREE_VERSION>.x86_64.dmg](https://github.com/embree/embree/releases/download/v<EMBREE_VERSION>/embree-<EMBREE_VERSION>.x86_64.dmg). This
+[embree-<EMBREE_VERSION>.x86_64.pkg](https://github.com/embree/embree/releases/download/v<EMBREE_VERSION>/embree-<EMBREE_VERSION>.x86_64.pkg). This
 will install Embree by default into `/opt/local/lib` and
 `/opt/local/include` directories. The Embree tutorials are installed
 into the `/Applications/Embree<EMBREE_VERSION_MAJOR>` directory.

@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -35,6 +35,7 @@ namespace embree
     case QUAD_MESH: delete (ISPCQuadMesh*) geom; break;
     case CURVES: delete (ISPCHairSet*) geom; break;
     case GRID_MESH: delete (ISPCGridMesh*) geom; break;
+    case POINTS: delete (ISPCPointSet*) geom; break;
     default: assert(false); break;
     }
   }
@@ -140,6 +141,8 @@ namespace embree
     
     texcoords = in->texcoords.data();
     triangles = (ISPCTriangle*) in->triangles.data();
+    startTime = in->time_range.lower;
+    endTime   = in->time_range.upper;
     numTimeSteps = (unsigned) in->numTimeSteps();
     numVertices = (unsigned) in->numVertices();
     numTriangles = (unsigned) in->numPrimitives();
@@ -166,6 +169,8 @@ namespace embree
     
     texcoords = in->texcoords.data();
     quads = (ISPCQuad*) in->quads.data();
+    startTime = in->time_range.lower;
+    endTime   = in->time_range.upper;
     numTimeSteps = (unsigned) in->numTimeSteps();
     numVertices = (unsigned) in->numVertices();
     numQuads = (unsigned) in->numPrimitives();
@@ -186,6 +191,8 @@ namespace embree
       positions[i] = in->positions[i].data();
 
     grids = (ISPCGrid*) in->grids.data();
+    startTime = in->time_range.lower;
+    endTime   = in->time_range.upper;
     numTimeSteps = (unsigned) in->numTimeSteps();
     numVertices = (unsigned) in->numVertices();
     numGrids = (unsigned) in->numPrimitives();
@@ -223,6 +230,8 @@ namespace embree
     edge_crease_weights = in->edge_crease_weights.data();
     vertex_creases = in->vertex_creases.data();
     vertex_crease_weights = in->vertex_crease_weights.data();
+    startTime = in->time_range.lower;
+    endTime   = in->time_range.upper;
     numTimeSteps = unsigned(in->numTimeSteps());
     numVertices = unsigned(in->numPositions());
     numFaces = unsigned(in->numPrimitives());
@@ -255,7 +264,7 @@ namespace embree
   }
   
   ISPCHairSet::ISPCHairSet (TutorialScene* scene_in, RTCGeometryType type, Ref<SceneGraph::HairSetNode> in)
-    : geom(CURVES), normals(nullptr), tangents(nullptr), type(type)
+    : geom(CURVES), normals(nullptr), tangents(nullptr), dnormals(nullptr), type(type)
   {
     positions = new Vec3fa*[in->numTimeSteps()];
     for (size_t i=0; i<in->numTimeSteps(); i++)
@@ -272,9 +281,17 @@ namespace embree
       for (size_t i=0; i<in->numTimeSteps(); i++)
         tangents[i] = in->tangents[i].data();
     }
+
+    if (in->dnormals.size()) {
+      dnormals = new Vec3fa*[in->numTimeSteps()];
+      for (size_t i=0; i<in->numTimeSteps(); i++)
+        dnormals[i] = in->dnormals[i].data();
+    }
     
     hairs = (ISPCHair*) in->hairs.data();
     flags = (unsigned char*)in->flags.data();
+    startTime = in->time_range.lower;
+    endTime   = in->time_range.upper;
     numTimeSteps = (unsigned) in->numTimeSteps();
     numVertices = (unsigned) in->numVertices();
     numHairs = (unsigned)in->numPrimitives();
@@ -286,7 +303,32 @@ namespace embree
     delete[] positions;
     delete[] normals;
     delete[] tangents;
+    delete[] dnormals;
   }
+
+  ISPCPointSet::ISPCPointSet (TutorialScene* scene_in, RTCGeometryType type, Ref<SceneGraph::PointSetNode> in)
+    : geom(POINTS), positions(nullptr), normals(nullptr), type(type)
+  {
+    positions = new Vec3fa*[in->numTimeSteps()];
+    for (size_t i=0; i<in->numTimeSteps(); i++)
+      positions[i] = in->positions[i].data();
+
+    if (in->normals.size()) {
+      normals = new Vec3fa*[in->numTimeSteps()];
+      for (size_t i=0; i<in->numTimeSteps(); i++)
+        normals[i] = in->normals[i].data();
+    }
+
+    numTimeSteps = (unsigned) in->numTimeSteps();
+    numVertices = (unsigned) in->numVertices();
+    geom.materialID = scene_in->materialID(in->material);
+  }
+
+  ISPCPointSet::~ISPCPointSet () {
+    if (positions) delete[] positions;
+    if (normals) delete[] normals;
+  }
+
 
   ISPCInstance::ISPCInstance (TutorialScene* scene, Ref<SceneGraph::TransformNode> in)
     : geom(INSTANCE), numTimeSteps(unsigned(in->spaces.size())) 
@@ -294,6 +336,9 @@ namespace embree
     spaces = (AffineSpace3fa*) alignedMalloc(in->spaces.size()*sizeof(AffineSpace3fa),16);
     geom.geomID = scene->geometryID(in->child);
     child = ISPCScene::convertGeometry(scene,in->child);
+    startTime  = in->spaces.time_range.lower;
+    endTime    = in->spaces.time_range.upper;
+    quaternion = in->spaces.quaternion;
     for (size_t i=0; i<numTimeSteps; i++)
       spaces[i] = in->spaces[i];
   }
@@ -310,7 +355,7 @@ namespace embree
     for (size_t i=0; i<numGeometries; i++)
       geometries[i] = ISPCScene::convertGeometry(scene,in->child(i));
   }
-  
+
   ISPCGroup::~ISPCGroup()
   {
     for (size_t i=0; i<numGeometries; i++)
@@ -339,6 +384,8 @@ namespace embree
       geom = (ISPCGeometry*) new ISPCInstance(scene,mesh);
     else if (Ref<SceneGraph::GroupNode> mesh = in.dynamicCast<SceneGraph::GroupNode>())
       geom = (ISPCGeometry*) new ISPCGroup(scene,mesh);
+    else if (Ref<SceneGraph::PointSetNode> mesh = in.dynamicCast<SceneGraph::PointSetNode>())
+      geom = (ISPCGeometry*) new ISPCPointSet(scene, mesh->type, mesh);
     else
       THROW_RUNTIME_ERROR("unknown geometry type");
 
@@ -350,11 +397,13 @@ namespace embree
   {
     RTCGeometry geom = rtcNewGeometry (device, RTC_GEOMETRY_TYPE_TRIANGLE);
     rtcSetGeometryTimeStepCount(geom,mesh->numTimeSteps);
+    rtcSetGeometryTimeRange(geom,mesh->startTime,mesh->endTime);
     rtcSetGeometryBuildQuality(geom, quality);
     for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
       rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT3, mesh->positions[t], 0, sizeof(Vec3fa), mesh->numVertices);
     }
     rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, mesh->triangles, 0, sizeof(ISPCTriangle), mesh->numTriangles);
+    rtcSetGeometryUserData(geom, mesh);
     rtcCommitGeometry(geom);
     rtcAttachGeometryByID(scene_out,geom,geomID);
     mesh->geom.geometry = geom;
@@ -367,11 +416,13 @@ namespace embree
   {
     RTCGeometry geom = rtcNewGeometry (device, RTC_GEOMETRY_TYPE_QUAD);
     rtcSetGeometryTimeStepCount(geom,mesh->numTimeSteps);
+    rtcSetGeometryTimeRange(geom,mesh->startTime,mesh->endTime);
     rtcSetGeometryBuildQuality(geom, quality);
     for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
       rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT3, mesh->positions[t], 0, sizeof(Vec3fa), mesh->numVertices);
     }
     rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT4, mesh->quads, 0, sizeof(ISPCQuad), mesh->numQuads);
+    rtcSetGeometryUserData(geom, mesh);
     rtcCommitGeometry(geom);
     rtcAttachGeometryByID(scene_out,geom,geomID);
     mesh->geom.geometry = geom;
@@ -384,11 +435,13 @@ namespace embree
   {
     RTCGeometry geom = rtcNewGeometry (device, RTC_GEOMETRY_TYPE_GRID);
     rtcSetGeometryTimeStepCount(geom,mesh->numTimeSteps);
+    rtcSetGeometryTimeRange(geom,mesh->startTime,mesh->endTime);
     rtcSetGeometryBuildQuality(geom, quality);
     for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
       rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT3, mesh->positions[t], 0, sizeof(Vec3fa), mesh->numVertices);
     }    
     rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_GRID, 0, RTC_FORMAT_GRID, mesh->grids, 0, sizeof(ISPCGrid), mesh->numGrids);
+    rtcSetGeometryUserData(geom, mesh);
     rtcCommitGeometry(geom);
     rtcAttachGeometryByID(scene_out,geom,geomID);
     mesh->geom.geometry = geom;
@@ -401,6 +454,7 @@ namespace embree
   {
     RTCGeometry geom = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_SUBDIVISION);
     rtcSetGeometryTimeStepCount(geom,mesh->numTimeSteps);
+    rtcSetGeometryTimeRange(geom,mesh->startTime,mesh->endTime);
     rtcSetGeometryBuildQuality(geom, quality);
     for (unsigned int i=0; i<mesh->numEdges; i++) mesh->subdivlevel[i] = FIXED_EDGE_TESSELLATION_VALUE;
     for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
@@ -442,6 +496,7 @@ namespace embree
     rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_EDGE_CREASE_WEIGHT,   0, RTC_FORMAT_FLOAT,  mesh->edge_crease_weights,   0, sizeof(float),          mesh->numEdgeCreases);
     rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_VERTEX_CREASE_INDEX,  0, RTC_FORMAT_UINT,   mesh->vertex_creases,        0, sizeof(unsigned int),   mesh->numVertexCreases);
     rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_VERTEX_CREASE_WEIGHT, 0, RTC_FORMAT_FLOAT,  mesh->vertex_crease_weights, 0, sizeof(float),          mesh->numVertexCreases);
+    rtcSetGeometryUserData(geom, mesh);
     rtcCommitGeometry(geom);
 
     rtcAttachGeometryByID(scene_out,geom,geomID);
@@ -455,6 +510,50 @@ namespace embree
   {
     RTCGeometry geom = rtcNewGeometry(device, mesh->type);
     rtcSetGeometryTimeStepCount(geom,mesh->numTimeSteps);
+    rtcSetGeometryTimeRange(geom,mesh->startTime,mesh->endTime);
+    rtcSetGeometryBuildQuality(geom, quality);
+
+    for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
+      rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_VERTEX, t, RTC_FORMAT_FLOAT4, mesh->positions[t], 0, sizeof(Vec3fa), mesh->numVertices);
+    }
+    
+    if (mesh->normals) {
+      for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
+        rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_NORMAL, t, RTC_FORMAT_FLOAT3, mesh->normals[t], 0, sizeof(Vec3fa), mesh->numVertices);
+      }
+    }
+    
+    if (mesh->tangents) {
+      for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
+        rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_TANGENT, t, RTC_FORMAT_FLOAT4, mesh->tangents[t], 0, sizeof(Vec3fa), mesh->numVertices);
+      }
+    }
+
+    if (mesh->dnormals) {
+      for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
+        rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_NORMAL_DERIVATIVE, t, RTC_FORMAT_FLOAT3, mesh->dnormals[t], 0, sizeof(Vec3fa), mesh->numVertices);
+      }
+    }
+    
+    rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT, mesh->hairs, 0, sizeof(ISPCHair), mesh->numHairs);
+    if (mesh->type != RTC_GEOMETRY_TYPE_FLAT_LINEAR_CURVE)
+      rtcSetGeometryTessellationRate(geom,(float)mesh->tessellation_rate);
+
+    rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_FLAGS, 0, RTC_FORMAT_UCHAR, mesh->flags, 0, sizeof(unsigned char), mesh->numHairs);
+    rtcSetGeometryUserData(geom, mesh);
+    rtcCommitGeometry(geom);
+
+    rtcAttachGeometryByID(scene_out,geom,geomID);
+    mesh->geom.geometry = geom;
+    mesh->geom.scene = scene_out;
+    mesh->geom.geomID = geomID;
+    return geomID;
+  }
+
+  unsigned int ConvertPoints(RTCDevice device, ISPCPointSet* mesh, RTCBuildQuality quality, RTCScene scene_out, unsigned int geomID)
+  {
+    RTCGeometry geom = rtcNewGeometry(device, mesh->type);
+    rtcSetGeometryTimeStepCount(geom,mesh->numTimeSteps);
     rtcSetGeometryBuildQuality(geom, quality);
 
     for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
@@ -465,16 +564,7 @@ namespace embree
         rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_NORMAL, t, RTC_FORMAT_FLOAT3, mesh->normals[t], 0, sizeof(Vec3fa), mesh->numVertices);
       }
     }
-    if (mesh->tangents) {
-      for (unsigned int t=0; t<mesh->numTimeSteps; t++) {
-        rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_TANGENT, t, RTC_FORMAT_FLOAT4, mesh->tangents[t], 0, sizeof(Vec3fa), mesh->numVertices);
-      }
-    }
-    rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT, mesh->hairs, 0, sizeof(ISPCHair), mesh->numHairs);
-    if (mesh->type != RTC_GEOMETRY_TYPE_FLAT_LINEAR_CURVE)
-      rtcSetGeometryTessellationRate(geom,(float)mesh->tessellation_rate);
-
-    rtcSetSharedGeometryBuffer(geom, RTC_BUFFER_TYPE_FLAGS, 0, RTC_FORMAT_UCHAR, mesh->flags, 0, sizeof(unsigned char), mesh->numHairs);
+    rtcSetGeometryUserData(geom, mesh);
     rtcCommitGeometry(geom);
 
     rtcAttachGeometryByID(scene_out,geom,geomID);
@@ -483,7 +573,7 @@ namespace embree
     mesh->geom.geomID = geomID;
     return geomID;
   }
-  
+
   void ConvertGroup(RTCDevice device, ISPCGroup* group, RTCBuildQuality quality, RTCScene scene_out, unsigned int geomID)
   {
     for (unsigned int i=0; i<group->numGeometries; i++)
@@ -499,6 +589,8 @@ namespace embree
         ConvertCurveGeometry(device,(ISPCHairSet*) geometry, quality, scene_out, i);
       else if (geometry->type == GRID_MESH)
         ConvertGridMesh(device,(ISPCGridMesh*) geometry, quality, scene_out, i);
+      else if (geometry->type == POINTS)
+        ConvertPoints(device,(ISPCPointSet*) geometry, quality, scene_out, i);
       else
         assert(false);
     }
@@ -514,7 +606,13 @@ namespace embree
       RTCGeometry geom = rtcNewGeometry (device, RTC_GEOMETRY_TYPE_INSTANCE);
       rtcSetGeometryInstancedScene(geom,scene_inst);
       rtcSetGeometryTimeStepCount(geom,1);
-      rtcSetGeometryTransform(geom,0,RTC_FORMAT_FLOAT4X4_COLUMN_MAJOR,&instance->spaces[0].l.vx.x);
+      if (instance->quaternion) {
+        QuaternionDecomposition qd = quaternionDecomposition(instance->spaces[0]);
+        rtcSetGeometryTransformQuaternion(geom,0,(RTCQuaternionDecomposition*)&qd);
+      } else {
+        rtcSetGeometryTransform(geom,0,RTC_FORMAT_FLOAT4X4_COLUMN_MAJOR,&instance->spaces[0].l.vx.x);
+      }
+      rtcSetGeometryUserData(geom, instance);
       rtcCommitGeometry(geom);
       rtcAttachGeometryByID(scene_out,geom,geomID);
       instance->geom.geometry = geom;
@@ -522,12 +620,21 @@ namespace embree
       instance->geom.geomID = geomID;
       return geomID;
     }
-    else {
+    else
+    {
       RTCGeometry geom = rtcNewGeometry (device, RTC_GEOMETRY_TYPE_INSTANCE);
       rtcSetGeometryInstancedScene(geom,scene_inst);
       rtcSetGeometryTimeStepCount(geom,instance->numTimeSteps);
-      for (size_t t=0; t<instance->numTimeSteps; t++)
-        rtcSetGeometryTransform(geom,(unsigned int)t,RTC_FORMAT_FLOAT4X4_COLUMN_MAJOR,&instance->spaces[t].l.vx.x);
+      rtcSetGeometryTimeRange(geom,instance->startTime,instance->endTime);
+      for (size_t t=0; t<instance->numTimeSteps; t++) {
+        if (instance->quaternion) {
+          QuaternionDecomposition qd = quaternionDecomposition(instance->spaces[t]);
+          rtcSetGeometryTransformQuaternion(geom,t,(RTCQuaternionDecomposition*)&qd);
+        } else {
+          rtcSetGeometryTransform(geom,(unsigned int)t,RTC_FORMAT_FLOAT4X4_COLUMN_MAJOR,&instance->spaces[t].l.vx.x);
+        }
+      }
+      rtcSetGeometryUserData(geom, instance);
       rtcCommitGeometry(geom);
       rtcAttachGeometryByID(scene_out,geom,geomID);
       instance->geom.geometry = geom;
@@ -579,6 +686,8 @@ namespace embree
           ConvertCurveGeometry(g_device,(ISPCHairSet*) geometry, quality, scene_out, i);
          else if (geometry->type == GRID_MESH)
           ConvertGridMesh(g_device,(ISPCGridMesh*) geometry, quality, scene_out, i);
+         else if (geometry->type == POINTS)
+          ConvertPoints(g_device,(ISPCPointSet*) geometry, quality, scene_out, i);
         else
           assert(false);
       }

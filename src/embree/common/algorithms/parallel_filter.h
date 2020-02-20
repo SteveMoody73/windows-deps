@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -39,7 +39,7 @@ namespace embree
       return sequential_filter(data,begin,end,predicate);
 
     /* calculate number of tasks to use */
-    enum { MAX_TASKS = 512 };
+    enum { MAX_TASKS = 64 };
     const Index numThreads = TaskScheduler::threadCount();
     const Index numBlocks  = (end-begin+minStepSize-1)/minStepSize;
     const Index taskCount  = min(numThreads,numBlocks,(Index)MAX_TASKS);

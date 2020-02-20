@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -22,6 +22,8 @@ namespace embree
   template<>
   struct vuint<8>
   {
+    ALIGNED_STRUCT_(32);
+        
     typedef vboolf8 Bool;
     typedef vuint8   Int;
     typedef vfloat8 Float;
@@ -285,7 +287,7 @@ namespace embree
   __forceinline vboolf8 operator <=(const vuint8& a, const vuint8& b) { return _mm256_cmp_epu32_mask(a,b,_MM_CMPINT_LE); }
 
   __forceinline vuint8 select(const vboolf8& m, const vuint8& t, const vuint8& f) {
-    return _mm256_mask_blend_epi32(m, f, t);
+    return _mm256_mask_blend_epi32(m, (__m256i)f, (__m256i)t);
   }
 #else
   __forceinline vboolf8 operator ==(const vuint8& a, const vuint8& b) { return _mm256_castsi256_ps(_mm256_cmpeq_epi32(a, b)); }

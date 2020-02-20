@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -35,7 +35,7 @@ namespace embree
         const GridMesh::Grid &g = mesh->grid(subgrid.primID());
 
         float ftime;
-        const int itime = getTimeSegment(ray.time(), float(mesh->fnumTimeSegments), ftime);
+        const int itime = mesh->timeSegment(ray.time(), ftime);
         Vec3vf4 v0,v1,v2,v3; subgrid.gatherMB(v0,v1,v2,v3,context->scene,itime,ftime);
         pre.intersect(ray,context,v0,v1,v2,v3,g,subgrid);
       }
@@ -47,10 +47,15 @@ namespace embree
         const GridMesh::Grid &g = mesh->grid(subgrid.primID());
 
         float ftime;
-        const int itime = getTimeSegment(ray.time(), float(mesh->fnumTimeSegments), ftime);
+        const int itime = mesh->timeSegment(ray.time(), ftime);
 
         Vec3vf4 v0,v1,v2,v3; subgrid.gatherMB(v0,v1,v2,v3,context->scene,itime,ftime);
         return pre.occluded(ray,context,v0,v1,v2,v3,g,subgrid);
+      }
+      
+      static __forceinline bool pointQuery(PointQuery* query, PointQueryContext* context, const SubGrid& subgrid)
+      {
+        return PrimitivePointQuery1<Primitive>::pointQuery(query, context, subgrid);
       }
 
       template<int Nx, bool robust>
@@ -95,6 +100,12 @@ namespace embree
         }
         return false;
       }
+      
+      static __forceinline bool pointQuery(const Accel::Intersectors* This, PointQuery* query, PointQueryContext* context, const Primitive* prim, size_t num, const TravPointQuery<N> &tquery, size_t& lazy_node)
+      {
+        assert(false && "not implemented");
+        return false;
+      }
     };
 
 
@@ -126,7 +137,7 @@ namespace embree
         }
         return !valid0;
       }
-
+      
       static __forceinline void intersect(Precalculations& pre, RayHitK<K>& ray, size_t k, IntersectContext* context, const SubGrid& subgrid)
       {
         STAT3(normal.trav_prims,1,1,1);
@@ -134,7 +145,7 @@ namespace embree
         const GridMesh::Grid &g = mesh->grid(subgrid.primID());
  
         vfloat<K> ftime;
-        const vint<K> itime = getTimeSegment(ray.time(), vfloat<K>(mesh->fnumTimeSegments), ftime);
+        const vint<K> itime = mesh->timeSegment(ray.time(), ftime);
         Vec3vf4 v0,v1,v2,v3; subgrid.gatherMB(v0,v1,v2,v3,context->scene,itime[k],ftime[k]);
         pre.intersect1(ray,k,context,v0,v1,v2,v3,g,subgrid);
       }
@@ -146,7 +157,7 @@ namespace embree
         const GridMesh::Grid &g = mesh->grid(subgrid.primID());
 
         vfloat<K> ftime;
-        const vint<K> itime = getTimeSegment(ray.time(), vfloat<K>(mesh->fnumTimeSegments), ftime);
+        const vint<K> itime = mesh->timeSegment(ray.time(), ftime);
         Vec3vf4 v0,v1,v2,v3; subgrid.gatherMB(v0,v1,v2,v3,context->scene,itime[k],ftime[k]);
         return pre.occluded1(ray,k,context,v0,v1,v2,v3,g,subgrid);
       }
@@ -191,7 +202,7 @@ namespace embree
           }
           return !valid0;
         }
-
+        
         template<int Nx, bool robust>        
           static __forceinline void intersect(const Accel::Intersectors* This, Precalculations& pre, RayHitK<K>& ray, size_t k, IntersectContext* context, const Primitive* prim, size_t num, const TravRay<N,Nx,robust> &tray, size_t& lazy_node)
         {
@@ -233,11 +244,6 @@ namespace embree
           }
           return false;
         }
-
-
     };
-
-
-
   }
 }

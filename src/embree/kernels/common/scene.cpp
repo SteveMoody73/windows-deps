@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -18,11 +18,12 @@
 
 #include "../bvh/bvh4_factory.h"
 #include "../bvh/bvh8_factory.h"
+#include "../../common/algorithms/parallel_reduce.h"
  
 namespace embree
 {
   /* error raising rtcIntersect and rtcOccluded functions */
-  void missing_rtcCommit()      { throw_RTCError(RTC_ERROR_INVALID_OPERATION,"scene got not committed"); }
+  void missing_rtcCommit()      { throw_RTCError(RTC_ERROR_INVALID_OPERATION,"scene not committed"); }
   void invalid_rtcIntersect1()  { throw_RTCError(RTC_ERROR_INVALID_OPERATION,"rtcIntersect and rtcOccluded not enabled"); }
   void invalid_rtcIntersect4()  { throw_RTCError(RTC_ERROR_INVALID_OPERATION,"rtcIntersect4 and rtcOccluded4 not enabled"); }
   void invalid_rtcIntersect8()  { throw_RTCError(RTC_ERROR_INVALID_OPERATION,"rtcIntersect8 and rtcOccluded8 not enabled"); }
@@ -30,19 +31,19 @@ namespace embree
   void invalid_rtcIntersectN()  { throw_RTCError(RTC_ERROR_INVALID_OPERATION,"rtcIntersectN and rtcOccludedN not enabled"); }
 
   Scene::Scene (Device* device)
-    : Accel(AccelData::TY_UNKNOWN),
-      device(device),
-      flags_modified(true),
+    : device(device),
+      flags_modified(true), enabled_geometry_types(0),
       scene_flags(RTC_SCENE_FLAG_NONE),
       quality_flags(RTC_BUILD_QUALITY_MEDIUM),
       is_build(false), modified(true),
-      progressInterface(this), progress_monitor_function(nullptr), progress_monitor_ptr(nullptr), progress_monitor_counter(0), 
-      numIntersectionFiltersN(0)
+      progressInterface(this), progress_monitor_function(nullptr), progress_monitor_ptr(nullptr), progress_monitor_counter(0)
   {
     device->refInc();
-    
+
 #if defined(TASKING_INTERNAL) 
     scheduler = nullptr;
+#elif defined(TASKING_TBB) && TASKING_TBB_USE_TASK_ISOLATION
+    group = new tbb::isolated_task_group;
 #elif defined(TASKING_TBB)
     group = new tbb::task_group;
 #elif defined(TASKING_PPL)
@@ -63,12 +64,6 @@ namespace embree
 #if defined(TASKING_TBB) || defined(TASKING_PPL)
     delete group; group = nullptr;
 #endif
-
-    /* detach all geometries */
-    for (auto& geometry : geometries)
-      if (geometry)
-        geometry->detach();
-
     device->refDec();
   }
   
@@ -129,47 +124,47 @@ namespace embree
         switch (mode) {
         case /*0b00*/ 0: 
 #if defined (EMBREE_TARGET_SIMD8)
-          if (device->hasISA(AVX))
+          if (device->canUseAVX())
 	  {
             if (quality_flags == RTC_BUILD_QUALITY_HIGH) 
-              accels.add(device->bvh8_factory->BVH8Triangle4(this,BVHFactory::BuildVariant::HIGH_QUALITY,BVHFactory::IntersectVariant::FAST));
+              accels_add(device->bvh8_factory->BVH8Triangle4(this,BVHFactory::BuildVariant::HIGH_QUALITY,BVHFactory::IntersectVariant::FAST));
             else
-              accels.add(device->bvh8_factory->BVH8Triangle4(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
+              accels_add(device->bvh8_factory->BVH8Triangle4(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
           }
           else 
 #endif
           { 
             if (quality_flags == RTC_BUILD_QUALITY_HIGH) 
-              accels.add(device->bvh4_factory->BVH4Triangle4(this,BVHFactory::BuildVariant::HIGH_QUALITY,BVHFactory::IntersectVariant::FAST));
+              accels_add(device->bvh4_factory->BVH4Triangle4(this,BVHFactory::BuildVariant::HIGH_QUALITY,BVHFactory::IntersectVariant::FAST));
             else 
-              accels.add(device->bvh4_factory->BVH4Triangle4(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
+              accels_add(device->bvh4_factory->BVH4Triangle4(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
           }
           break;
 
         case /*0b01*/ 1: 
 #if defined (EMBREE_TARGET_SIMD8)
-          if (device->hasISA(AVX)) 
-            accels.add(device->bvh8_factory->BVH8Triangle4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
+          if (device->canUseAVX()) 
+            accels_add(device->bvh8_factory->BVH8Triangle4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
           else
 #endif
-            accels.add(device->bvh4_factory->BVH4Triangle4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
+            accels_add(device->bvh4_factory->BVH4Triangle4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
 
           break;
-        case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
-        case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
+        case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
+        case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
         }
       }
       else /* dynamic */
       {
 #if defined (EMBREE_TARGET_SIMD8)
-          if (device->hasISA(AVX))
+          if (device->canUseAVX())
 	  {
             int mode =  2*(int)isCompactAccel() + 1*(int)isRobustAccel();
             switch (mode) {
-            case /*0b00*/ 0: accels.add(device->bvh8_factory->BVH8Triangle4 (this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST  )); break;
-            case /*0b01*/ 1: accels.add(device->bvh8_factory->BVH8Triangle4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
-            case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST  )); break;
-            case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
+            case /*0b00*/ 0: accels_add(device->bvh8_factory->BVH8Triangle4 (this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST  )); break;
+            case /*0b01*/ 1: accels_add(device->bvh8_factory->BVH8Triangle4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
+            case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST  )); break;
+            case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
             }
           }
           else
@@ -177,25 +172,25 @@ namespace embree
           {
             int mode =  2*(int)isCompactAccel() + 1*(int)isRobustAccel();
             switch (mode) {
-            case /*0b00*/ 0: accels.add(device->bvh4_factory->BVH4Triangle4 (this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST  )); break;
-            case /*0b01*/ 1: accels.add(device->bvh4_factory->BVH4Triangle4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
-            case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST  )); break;
-            case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
+            case /*0b00*/ 0: accels_add(device->bvh4_factory->BVH4Triangle4 (this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST  )); break;
+            case /*0b01*/ 1: accels_add(device->bvh4_factory->BVH4Triangle4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
+            case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST  )); break;
+            case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4Triangle4i(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
             }
           }
       }
     }
-    else if (device->tri_accel == "bvh4.triangle4")       accels.add(device->bvh4_factory->BVH4Triangle4 (this));
-    else if (device->tri_accel == "bvh4.triangle4v")      accels.add(device->bvh4_factory->BVH4Triangle4v(this));
-    else if (device->tri_accel == "bvh4.triangle4i")      accels.add(device->bvh4_factory->BVH4Triangle4i(this));
-    else if (device->tri_accel == "qbvh4.triangle4i")     accels.add(device->bvh4_factory->BVH4QuantizedTriangle4i(this));
+    else if (device->tri_accel == "bvh4.triangle4")       accels_add(device->bvh4_factory->BVH4Triangle4 (this));
+    else if (device->tri_accel == "bvh4.triangle4v")      accels_add(device->bvh4_factory->BVH4Triangle4v(this));
+    else if (device->tri_accel == "bvh4.triangle4i")      accels_add(device->bvh4_factory->BVH4Triangle4i(this));
+    else if (device->tri_accel == "qbvh4.triangle4i")     accels_add(device->bvh4_factory->BVH4QuantizedTriangle4i(this));
 
 #if defined (EMBREE_TARGET_SIMD8)
-    else if (device->tri_accel == "bvh8.triangle4")       accels.add(device->bvh8_factory->BVH8Triangle4 (this));
-    else if (device->tri_accel == "bvh8.triangle4v")      accels.add(device->bvh8_factory->BVH8Triangle4v(this));
-    else if (device->tri_accel == "bvh8.triangle4i")      accels.add(device->bvh8_factory->BVH8Triangle4i(this));
-    else if (device->tri_accel == "qbvh8.triangle4i")     accels.add(device->bvh8_factory->BVH8QuantizedTriangle4i(this));
-    else if (device->tri_accel == "qbvh8.triangle4")      accels.add(device->bvh8_factory->BVH8QuantizedTriangle4(this));
+    else if (device->tri_accel == "bvh8.triangle4")       accels_add(device->bvh8_factory->BVH8Triangle4 (this));
+    else if (device->tri_accel == "bvh8.triangle4v")      accels_add(device->bvh8_factory->BVH8Triangle4v(this));
+    else if (device->tri_accel == "bvh8.triangle4i")      accels_add(device->bvh8_factory->BVH8Triangle4i(this));
+    else if (device->tri_accel == "qbvh8.triangle4i")     accels_add(device->bvh8_factory->BVH8QuantizedTriangle4i(this));
+    else if (device->tri_accel == "qbvh8.triangle4")      accels_add(device->bvh8_factory->BVH8QuantizedTriangle4(this));
 #endif
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown triangle acceleration structure "+device->tri_accel);
 #endif
@@ -209,31 +204,31 @@ namespace embree
       int mode =  2*(int)isCompactAccel() + 1*(int)isRobustAccel(); 
       
 #if defined (EMBREE_TARGET_SIMD8)
-      if (device->hasISA(AVX2)) // BVH8 reduces performance on AVX only-machines
+      if (device->canUseAVX2()) // BVH8 reduces performance on AVX only-machines
       {
         switch (mode) {
-        case /*0b00*/ 0: accels.add(device->bvh8_factory->BVH8Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
-        case /*0b01*/ 1: accels.add(device->bvh8_factory->BVH8Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
-        case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
-        case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
+        case /*0b00*/ 0: accels_add(device->bvh8_factory->BVH8Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
+        case /*0b01*/ 1: accels_add(device->bvh8_factory->BVH8Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
+        case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
+        case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
         }
       }
       else
 #endif
       {
         switch (mode) {
-        case /*0b00*/ 0: accels.add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
-        case /*0b01*/ 1: accels.add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
-        case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
-        case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
+        case /*0b00*/ 0: accels_add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
+        case /*0b01*/ 1: accels_add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
+        case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
+        case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4Triangle4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
         }
       }
     }
-    else if (device->tri_accel_mb == "bvh4.triangle4imb") accels.add(device->bvh4_factory->BVH4Triangle4iMB(this));
-    else if (device->tri_accel_mb == "bvh4.triangle4vmb") accels.add(device->bvh4_factory->BVH4Triangle4vMB(this));
+    else if (device->tri_accel_mb == "bvh4.triangle4imb") accels_add(device->bvh4_factory->BVH4Triangle4iMB(this));
+    else if (device->tri_accel_mb == "bvh4.triangle4vmb") accels_add(device->bvh4_factory->BVH4Triangle4vMB(this));
 #if defined (EMBREE_TARGET_SIMD8)
-    else if (device->tri_accel_mb == "bvh8.triangle4imb") accels.add(device->bvh8_factory->BVH8Triangle4iMB(this));
-    else if (device->tri_accel_mb == "bvh8.triangle4vmb") accels.add(device->bvh8_factory->BVH8Triangle4vMB(this));
+    else if (device->tri_accel_mb == "bvh8.triangle4imb") accels_add(device->bvh8_factory->BVH8Triangle4iMB(this));
+    else if (device->tri_accel_mb == "bvh8.triangle4vmb") accels_add(device->bvh8_factory->BVH8Triangle4vMB(this));
 #endif
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown motion blur triangle acceleration structure "+device->tri_accel_mb);
 #endif
@@ -251,47 +246,47 @@ namespace embree
         switch (mode) {
         case /*0b00*/ 0:
 #if defined (EMBREE_TARGET_SIMD8)
-          if (device->hasISA(AVX))
+          if (device->canUseAVX())
           {
             if (quality_flags == RTC_BUILD_QUALITY_HIGH) 
-              accels.add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::HIGH_QUALITY,BVHFactory::IntersectVariant::FAST));
+              accels_add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::HIGH_QUALITY,BVHFactory::IntersectVariant::FAST));
             else
-              accels.add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
+              accels_add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
           }
           else
 #endif
           {
             if (quality_flags == RTC_BUILD_QUALITY_HIGH) 
-              accels.add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::HIGH_QUALITY,BVHFactory::IntersectVariant::FAST));
+              accels_add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::HIGH_QUALITY,BVHFactory::IntersectVariant::FAST));
             else
-              accels.add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
+              accels_add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
           }
           break;
 
         case /*0b01*/ 1:
 #if defined (EMBREE_TARGET_SIMD8)
-          if (device->hasISA(AVX))
-            accels.add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
+          if (device->canUseAVX())
+            accels_add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
           else
 #endif
-            accels.add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
+            accels_add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
           break;
 
-        case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4Quad4i(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST)); break;
-        case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4Quad4i(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
+        case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4Quad4i(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST)); break;
+        case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4Quad4i(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
         }
       }
       else /* dynamic */
       {
 #if defined (EMBREE_TARGET_SIMD8)
-          if (device->hasISA(AVX))
+          if (device->canUseAVX())
 	  {
             int mode =  2*(int)isCompactAccel() + 1*(int)isRobustAccel();
             switch (mode) {
-            case /*0b00*/ 0: accels.add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST)); break;
-            case /*0b01*/ 1: accels.add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
-            case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST)); break;
-            case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
+            case /*0b00*/ 0: accels_add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST)); break;
+            case /*0b01*/ 1: accels_add(device->bvh8_factory->BVH8Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
+            case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST)); break;
+            case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
             }
           }
           else
@@ -299,22 +294,22 @@ namespace embree
           {
             int mode =  2*(int)isCompactAccel() + 1*(int)isRobustAccel();
             switch (mode) {
-            case /*0b00*/ 0: accels.add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST)); break;
-            case /*0b01*/ 1: accels.add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
-            case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST)); break;
-            case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
+            case /*0b00*/ 0: accels_add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST)); break;
+            case /*0b01*/ 1: accels_add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
+            case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::FAST)); break;
+            case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4Quad4v(this,BVHFactory::BuildVariant::DYNAMIC,BVHFactory::IntersectVariant::ROBUST)); break;
             }
           }
       }
     }
-    else if (device->quad_accel == "bvh4.quad4v")       accels.add(device->bvh4_factory->BVH4Quad4v(this));
-    else if (device->quad_accel == "bvh4.quad4i")       accels.add(device->bvh4_factory->BVH4Quad4i(this));
-    else if (device->quad_accel == "qbvh4.quad4i")      accels.add(device->bvh4_factory->BVH4QuantizedQuad4i(this));
+    else if (device->quad_accel == "bvh4.quad4v")       accels_add(device->bvh4_factory->BVH4Quad4v(this));
+    else if (device->quad_accel == "bvh4.quad4i")       accels_add(device->bvh4_factory->BVH4Quad4i(this));
+    else if (device->quad_accel == "qbvh4.quad4i")      accels_add(device->bvh4_factory->BVH4QuantizedQuad4i(this));
 
 #if defined (EMBREE_TARGET_SIMD8)
-    else if (device->quad_accel == "bvh8.quad4v")       accels.add(device->bvh8_factory->BVH8Quad4v(this));
-    else if (device->quad_accel == "bvh8.quad4i")       accels.add(device->bvh8_factory->BVH8Quad4i(this));
-    else if (device->quad_accel == "qbvh8.quad4i")      accels.add(device->bvh8_factory->BVH8QuantizedQuad4i(this));
+    else if (device->quad_accel == "bvh8.quad4v")       accels_add(device->bvh8_factory->BVH8Quad4v(this));
+    else if (device->quad_accel == "bvh8.quad4i")       accels_add(device->bvh8_factory->BVH8Quad4i(this));
+    else if (device->quad_accel == "qbvh8.quad4i")      accels_add(device->bvh8_factory->BVH8QuantizedQuad4i(this));
 #endif
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown quad acceleration structure "+device->quad_accel);
 #endif
@@ -329,29 +324,29 @@ namespace embree
       switch (mode) {
       case /*0b00*/ 0:
 #if defined (EMBREE_TARGET_SIMD8)
-        if (device->hasISA(AVX))
-          accels.add(device->bvh8_factory->BVH8Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
+        if (device->canUseAVX())
+          accels_add(device->bvh8_factory->BVH8Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
         else
 #endif
-          accels.add(device->bvh4_factory->BVH4Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
+          accels_add(device->bvh4_factory->BVH4Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST));
         break;
 
       case /*0b01*/ 1:
 #if defined (EMBREE_TARGET_SIMD8)
-        if (device->hasISA(AVX))
-          accels.add(device->bvh8_factory->BVH8Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
+        if (device->canUseAVX())
+          accels_add(device->bvh8_factory->BVH8Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
         else
 #endif
-          accels.add(device->bvh4_factory->BVH4Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
+          accels_add(device->bvh4_factory->BVH4Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST));
         break;
 
-      case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
-      case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
+      case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::FAST  )); break;
+      case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4Quad4iMB(this,BVHFactory::BuildVariant::STATIC,BVHFactory::IntersectVariant::ROBUST)); break;
       }
     }
-    else if (device->quad_accel_mb == "bvh4.quad4imb") accels.add(device->bvh4_factory->BVH4Quad4iMB(this));
+    else if (device->quad_accel_mb == "bvh4.quad4imb") accels_add(device->bvh4_factory->BVH4Quad4iMB(this));
 #if defined (EMBREE_TARGET_SIMD8)
-    else if (device->quad_accel_mb == "bvh8.quad4imb") accels.add(device->bvh8_factory->BVH8Quad4iMB(this));
+    else if (device->quad_accel_mb == "bvh8.quad4imb") accels_add(device->bvh8_factory->BVH8Quad4iMB(this));
 #endif
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown quad motion blur acceleration structure "+device->quad_accel_mb);
 #endif
@@ -359,36 +354,36 @@ namespace embree
 
   void Scene::createHairAccel()
   {
-#if defined(EMBREE_GEOMETRY_CURVE)
+#if defined(EMBREE_GEOMETRY_CURVE) || defined(EMBREE_GEOMETRY_POINT)
     if (device->hair_accel == "default")
     {
       int mode = 2*(int)isCompactAccel() + 1*(int)isRobustAccel();
 #if defined (EMBREE_TARGET_SIMD8)
-      if (device->hasISA(AVX2)) // only enable on HSW machines, for SNB this codepath is slower
+      if (device->canUseAVX2()) // only enable on HSW machines, for SNB this codepath is slower
       {
         switch (mode) {
-        case /*0b00*/ 0: accels.add(device->bvh8_factory->BVH8OBBVirtualCurve8v(this)); break;
-        case /*0b01*/ 1: accels.add(device->bvh8_factory->BVH8OBBVirtualCurve8v(this)); break;
-        case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4OBBVirtualCurve8i(this)); break;
-        case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4OBBVirtualCurve8i(this)); break;
+        case /*0b00*/ 0: accels_add(device->bvh8_factory->BVH8OBBVirtualCurve8v(this,BVHFactory::IntersectVariant::FAST)); break;
+        case /*0b01*/ 1: accels_add(device->bvh8_factory->BVH8OBBVirtualCurve8v(this,BVHFactory::IntersectVariant::ROBUST)); break;
+        case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4OBBVirtualCurve8i(this,BVHFactory::IntersectVariant::FAST)); break;
+        case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4OBBVirtualCurve8i(this,BVHFactory::IntersectVariant::ROBUST)); break;
         }
       }
       else
 #endif
       {
         switch (mode) {
-        case /*0b00*/ 0: accels.add(device->bvh4_factory->BVH4OBBVirtualCurve4v(this)); break;
-        case /*0b01*/ 1: accels.add(device->bvh4_factory->BVH4OBBVirtualCurve4v(this)); break;
-        case /*0b10*/ 2: accels.add(device->bvh4_factory->BVH4OBBVirtualCurve4i(this)); break;
-        case /*0b11*/ 3: accels.add(device->bvh4_factory->BVH4OBBVirtualCurve4i(this)); break;
+        case /*0b00*/ 0: accels_add(device->bvh4_factory->BVH4OBBVirtualCurve4v(this,BVHFactory::IntersectVariant::FAST)); break;
+        case /*0b01*/ 1: accels_add(device->bvh4_factory->BVH4OBBVirtualCurve4v(this,BVHFactory::IntersectVariant::ROBUST)); break;
+        case /*0b10*/ 2: accels_add(device->bvh4_factory->BVH4OBBVirtualCurve4i(this,BVHFactory::IntersectVariant::FAST)); break;
+        case /*0b11*/ 3: accels_add(device->bvh4_factory->BVH4OBBVirtualCurve4i(this,BVHFactory::IntersectVariant::ROBUST)); break;
         }
       }
     }
-    else if (device->hair_accel == "bvh4obb.virtualcurve4v" ) accels.add(device->bvh4_factory->BVH4OBBVirtualCurve4v(this));
-    else if (device->hair_accel == "bvh4obb.virtualcurve4i" ) accels.add(device->bvh4_factory->BVH4OBBVirtualCurve4i(this));
+    else if (device->hair_accel == "bvh4obb.virtualcurve4v" ) accels_add(device->bvh4_factory->BVH4OBBVirtualCurve4v(this,BVHFactory::IntersectVariant::FAST));
+    else if (device->hair_accel == "bvh4obb.virtualcurve4i" ) accels_add(device->bvh4_factory->BVH4OBBVirtualCurve4i(this,BVHFactory::IntersectVariant::FAST));
 #if defined (EMBREE_TARGET_SIMD8)
-    else if (device->hair_accel == "bvh8obb.virtualcurve8v" ) accels.add(device->bvh8_factory->BVH8OBBVirtualCurve8v(this));
-    else if (device->hair_accel == "bvh4obb.virtualcurve8i" ) accels.add(device->bvh4_factory->BVH4OBBVirtualCurve8i(this));
+    else if (device->hair_accel == "bvh8obb.virtualcurve8v" ) accels_add(device->bvh8_factory->BVH8OBBVirtualCurve8v(this,BVHFactory::IntersectVariant::FAST));
+    else if (device->hair_accel == "bvh4obb.virtualcurve8i" ) accels_add(device->bvh4_factory->BVH4OBBVirtualCurve8i(this,BVHFactory::IntersectVariant::FAST));
 #endif
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown hair acceleration structure "+device->hair_accel);
 #endif
@@ -396,23 +391,27 @@ namespace embree
 
   void Scene::createHairMBAccel()
   {
-#if defined(EMBREE_GEOMETRY_CURVE)
+#if defined(EMBREE_GEOMETRY_CURVE) || defined(EMBREE_GEOMETRY_POINT)
     if (device->hair_accel_mb == "default")
     {
 #if defined (EMBREE_TARGET_SIMD8)
-      if (device->hasISA(AVX2)) // only enable on HSW machines, on SNB this codepath is slower
+      if (device->canUseAVX2()) // only enable on HSW machines, on SNB this codepath is slower
       {
-        accels.add(device->bvh4_factory->BVH4OBBVirtualCurve8iMB(this));
+        if (isRobustAccel()) accels_add(device->bvh8_factory->BVH8OBBVirtualCurve8iMB(this,BVHFactory::IntersectVariant::ROBUST));
+        else                 accels_add(device->bvh8_factory->BVH8OBBVirtualCurve8iMB(this,BVHFactory::IntersectVariant::FAST));
       }
       else
 #endif
       {
-        accels.add(device->bvh4_factory->BVH4OBBVirtualCurve4iMB(this));
+        if (isRobustAccel()) accels_add(device->bvh4_factory->BVH4OBBVirtualCurve4iMB(this,BVHFactory::IntersectVariant::ROBUST));
+        else                 accels_add(device->bvh4_factory->BVH4OBBVirtualCurve4iMB(this,BVHFactory::IntersectVariant::FAST));
       }
     }
-    else if (device->hair_accel_mb == "bvh4.virtualcurve4imb") accels.add(device->bvh4_factory->BVH4OBBVirtualCurve4iMB(this));
+    else if (device->hair_accel_mb == "bvh4.virtualcurve4imb") accels_add(device->bvh4_factory->BVH4OBBVirtualCurve4iMB(this,BVHFactory::IntersectVariant::FAST));
+
 #if defined (EMBREE_TARGET_SIMD8)
-    else if (device->hair_accel_mb == "bvh4.virtualcurve8imb") accels.add(device->bvh4_factory->BVH4OBBVirtualCurve8iMB(this));
+    else if (device->hair_accel_mb == "bvh4.virtualcurve8imb") accels_add(device->bvh4_factory->BVH4OBBVirtualCurve8iMB(this,BVHFactory::IntersectVariant::FAST));
+    else if (device->hair_accel_mb == "bvh8.virtualcurve8imb") accels_add(device->bvh8_factory->BVH8OBBVirtualCurve8iMB(this,BVHFactory::IntersectVariant::FAST));
 #endif
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown motion blur hair acceleration structure "+device->hair_accel_mb);
 #endif
@@ -422,10 +421,10 @@ namespace embree
   {
 #if defined(EMBREE_GEOMETRY_SUBDIVISION)
     if (device->subdiv_accel == "default") {
-      accels.add(device->bvh4_factory->BVH4SubdivPatch1(this));
+      accels_add(device->bvh4_factory->BVH4SubdivPatch1(this));
     }
-    else if (device->subdiv_accel == "bvh4.grid.eager" ) accels.add(device->bvh4_factory->BVH4SubdivPatch1(this));
-    else if (device->subdiv_accel == "bvh4.subdivpatch1eager" ) accels.add(device->bvh4_factory->BVH4SubdivPatch1(this));
+    else if (device->subdiv_accel == "bvh4.grid.eager" ) accels_add(device->bvh4_factory->BVH4SubdivPatch1(this));
+    else if (device->subdiv_accel == "bvh4.subdivpatch1eager" ) accels_add(device->bvh4_factory->BVH4SubdivPatch1(this));
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown subdiv accel "+device->subdiv_accel);
 #endif
   }
@@ -434,7 +433,7 @@ namespace embree
   {
 #if defined(EMBREE_GEOMETRY_SUBDIVISION)
     if (device->subdiv_accel_mb == "default") {
-      accels.add(device->bvh4_factory->BVH4SubdivPatch1MB(this));
+      accels_add(device->bvh4_factory->BVH4SubdivPatch1MB(this));
     }
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown subdiv mblur accel "+device->subdiv_accel_mb);
 #endif
@@ -446,27 +445,27 @@ namespace embree
     if (device->object_accel == "default") 
     {
 #if defined (EMBREE_TARGET_SIMD8)
-      if (device->hasISA(AVX) && !isCompactAccel())
+      if (device->canUseAVX() && !isCompactAccel())
       {
         //if (quality_flags != RTC_BUILD_QUALITY_LOW) {
-        accels.add(device->bvh8_factory->BVH8UserGeometry(this,BVHFactory::BuildVariant::STATIC));
+        accels_add(device->bvh8_factory->BVH8UserGeometry(this,BVHFactory::BuildVariant::STATIC));
         //} else {
-        //accels.add(device->bvh8_factory->BVH8UserGeometry(this,BVHFactory::BuildVariant::DYNAMIC));
+        //accels_add(device->bvh8_factory->BVH8UserGeometry(this,BVHFactory::BuildVariant::DYNAMIC));
         //}
       }
       else
 #endif
       {
         //if (quality_flags != RTC_BUILD_QUALITY_LOW) {
-        accels.add(device->bvh4_factory->BVH4UserGeometry(this,BVHFactory::BuildVariant::STATIC));
+        accels_add(device->bvh4_factory->BVH4UserGeometry(this,BVHFactory::BuildVariant::STATIC));
         //} else {
-        //accels.add(device->bvh4_factory->BVH4UserGeometry(this,BVHFactory::BuildVariant::DYNAMIC)); // FIXME: only enable when memory consumption issue with instancing is solved
+        //accels_add(device->bvh4_factory->BVH4UserGeometry(this,BVHFactory::BuildVariant::DYNAMIC)); // FIXME: only enable when memory consumption issue with instancing is solved
         //}
       }
     }
-    else if (device->object_accel == "bvh4.object") accels.add(device->bvh4_factory->BVH4UserGeometry(this));
+    else if (device->object_accel == "bvh4.object") accels_add(device->bvh4_factory->BVH4UserGeometry(this));
 #if defined (EMBREE_TARGET_SIMD8)
-    else if (device->object_accel == "bvh8.object") accels.add(device->bvh8_factory->BVH8UserGeometry(this));
+    else if (device->object_accel == "bvh8.object") accels_add(device->bvh8_factory->BVH8UserGeometry(this));
 #endif
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown user geometry accel "+device->object_accel);
 #endif
@@ -477,15 +476,15 @@ namespace embree
 #if defined(EMBREE_GEOMETRY_USER)
     if (device->object_accel_mb == "default"    ) {
 #if defined (EMBREE_TARGET_SIMD8)
-      if (device->hasISA(AVX) && !isCompactAccel())
-        accels.add(device->bvh8_factory->BVH8UserGeometryMB(this));
+      if (device->canUseAVX() && !isCompactAccel())
+        accels_add(device->bvh8_factory->BVH8UserGeometryMB(this));
       else
 #endif
-        accels.add(device->bvh4_factory->BVH4UserGeometryMB(this));
+        accels_add(device->bvh4_factory->BVH4UserGeometryMB(this));
     }
-    else if (device->object_accel_mb == "bvh4.object") accels.add(device->bvh4_factory->BVH4UserGeometryMB(this));
+    else if (device->object_accel_mb == "bvh4.object") accels_add(device->bvh4_factory->BVH4UserGeometryMB(this));
 #if defined (EMBREE_TARGET_SIMD8)
-    else if (device->object_accel_mb == "bvh8.object") accels.add(device->bvh8_factory->BVH8UserGeometryMB(this));
+    else if (device->object_accel_mb == "bvh8.object") accels_add(device->bvh8_factory->BVH8UserGeometryMB(this));
 #endif
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown user geometry mblur accel "+device->object_accel_mb);
 #endif
@@ -497,11 +496,11 @@ namespace embree
     //if (device->object_accel == "default") 
     {
 #if defined (EMBREE_TARGET_SIMD8)
-      if (device->hasISA(AVX) && !isCompactAccel())
-        accels.add(device->bvh8_factory->BVH8Instance(this,BVHFactory::BuildVariant::STATIC));
+      if (device->canUseAVX() && !isCompactAccel())
+        accels_add(device->bvh8_factory->BVH8Instance(this, false, BVHFactory::BuildVariant::STATIC));
       else
 #endif
-        accels.add(device->bvh4_factory->BVH4Instance(this,BVHFactory::BuildVariant::STATIC));
+        accels_add(device->bvh4_factory->BVH4Instance(this, false, BVHFactory::BuildVariant::STATIC));
     }
     //else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown instance accel "+device->instance_accel);
 #endif
@@ -513,11 +512,43 @@ namespace embree
     //if (device->instance_accel_mb == "default")
     {
 #if defined (EMBREE_TARGET_SIMD8)
-      if (device->hasISA(AVX) && !isCompactAccel())
-        accels.add(device->bvh8_factory->BVH8InstanceMB(this));
+      if (device->canUseAVX() && !isCompactAccel())
+        accels_add(device->bvh8_factory->BVH8InstanceMB(this, false));
       else
 #endif
-        accels.add(device->bvh4_factory->BVH4InstanceMB(this));
+        accels_add(device->bvh4_factory->BVH4InstanceMB(this, false));
+    }
+    //else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown instance mblur accel "+device->instance_accel_mb);
+#endif
+  }
+
+  void Scene::createInstanceExpensiveAccel()
+  {
+#if defined(EMBREE_GEOMETRY_INSTANCE)
+    //if (device->object_accel == "default") 
+    {
+#if defined (EMBREE_TARGET_SIMD8)
+      if (device->canUseAVX() && !isCompactAccel())
+        accels_add(device->bvh8_factory->BVH8Instance(this, true, BVHFactory::BuildVariant::STATIC));
+      else
+#endif
+        accels_add(device->bvh4_factory->BVH4Instance(this, true, BVHFactory::BuildVariant::STATIC));
+    }
+    //else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown instance accel "+device->instance_accel);
+#endif
+  }
+
+  void Scene::createInstanceExpensiveMBAccel()
+  {
+#if defined(EMBREE_GEOMETRY_INSTANCE)
+    //if (device->instance_accel_mb == "default")
+    {
+#if defined (EMBREE_TARGET_SIMD8)
+      if (device->canUseAVX() && !isCompactAccel())
+        accels_add(device->bvh8_factory->BVH8InstanceMB(this, true));
+      else
+#endif
+        accels_add(device->bvh4_factory->BVH4InstanceMB(this, true));
     }
     //else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown instance mblur accel "+device->instance_accel_mb);
 #endif
@@ -530,19 +561,19 @@ namespace embree
     if (device->grid_accel == "default") 
     {
 #if defined (EMBREE_TARGET_SIMD8)
-      if (device->hasISA(AVX) && !isCompactAccel())
+      if (device->canUseAVX() && !isCompactAccel())
       {
-        accels.add(device->bvh8_factory->BVH8Grid(this,BVHFactory::BuildVariant::STATIC,ivariant));
+        accels_add(device->bvh8_factory->BVH8Grid(this,BVHFactory::BuildVariant::STATIC,ivariant));
       }
       else
 #endif
       {
-        accels.add(device->bvh4_factory->BVH4Grid(this,BVHFactory::BuildVariant::STATIC,ivariant));
+        accels_add(device->bvh4_factory->BVH4Grid(this,BVHFactory::BuildVariant::STATIC,ivariant));
       }
     }
-    else if (device->grid_accel == "bvh4.grid") accels.add(device->bvh4_factory->BVH4Grid(this,BVHFactory::BuildVariant::STATIC,ivariant));
+    else if (device->grid_accel == "bvh4.grid") accels_add(device->bvh4_factory->BVH4Grid(this,BVHFactory::BuildVariant::STATIC,ivariant));
 #if defined (EMBREE_TARGET_SIMD8)
-    else if (device->grid_accel == "bvh8.grid") accels.add(device->bvh8_factory->BVH8Grid(this,BVHFactory::BuildVariant::STATIC,ivariant));
+    else if (device->grid_accel == "bvh8.grid") accels_add(device->bvh8_factory->BVH8Grid(this,BVHFactory::BuildVariant::STATIC,ivariant));
 #endif
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown grid accel "+device->grid_accel);
 #endif
@@ -554,9 +585,9 @@ namespace embree
 #if defined(EMBREE_GEOMETRY_GRID)
     if (device->grid_accel_mb == "default") 
     {
-      accels.add(device->bvh4_factory->BVH4GridMB(this,BVHFactory::BuildVariant::STATIC));
+      accels_add(device->bvh4_factory->BVH4GridMB(this,BVHFactory::BuildVariant::STATIC));
     }
-    else if (device->grid_accel_mb == "bvh4mb.grid") accels.add(device->bvh4_factory->BVH4GridMB(this));
+    else if (device->grid_accel_mb == "bvh4mb.grid") accels_add(device->bvh4_factory->BVH4GridMB(this));
     else throw_RTCError(RTC_ERROR_INVALID_ARGUMENT,"unknown grid mb accel "+device->grid_accel);
 #endif
 
@@ -581,8 +612,13 @@ namespace embree
     if (geomID >= geometries.size()) {
       geometries.resize(geomID+1);
       vertices.resize(geomID+1);
+      geometryModCounters_.resize(geomID+1);
     }
-    geometries[geomID] = geometry->attach(this,geomID);
+    geometries[geomID] = geometry;
+    geometryModCounters_[geomID] = 0;
+    if (geometry->isEnabled()) {
+      setModified ();
+    }
     return geomID;
   }
 
@@ -597,79 +633,112 @@ namespace embree
     if (geometry == null)
       throw_RTCError(RTC_ERROR_INVALID_OPERATION,"invalid geometry");
     
-    geometry->detach();
-    accels.deleteGeometry(unsigned(geomID));
+    if (geometry->isEnabled()) {
+      setModified ();
+    }
+    accels_deleteGeometry(unsigned(geomID));
     id_pool.deallocate((unsigned)geomID);
     geometries[geomID] = null;
     vertices[geomID] = nullptr;
+    geometryModCounters_[geomID] = 0;
   }
 
   void Scene::updateInterface()
   {
-    /* update bounds */
     is_build = true;
-    bounds = accels.bounds;
-    intersectors = accels.intersectors;
   }
 
   void Scene::commit_task ()
   {
+    checkIfModifiedAndSet ();
+    if (!isModified()) {
+      return;
+    }
+    
     /* print scene statistics */
     if (device->verbosity(2))
       printStatistics();
 
     progress_monitor_counter = 0;
-
-    /* call preCommit function of each geometry */
-    parallel_for(geometries.size(), [&] ( const size_t i ) {
-        if (geometries[i] && geometries[i]->isEnabled())
-          geometries[i]->preCommit();
-      });
-
+    
+    /* gather scene stats and call preCommit function of each geometry */
+    this->world = parallel_reduce (size_t(0), geometries.size(), GeometryCounts (), 
+      [this](const range<size_t>& r)->GeometryCounts
+      {
+        GeometryCounts c;
+        for (auto i=r.begin(); i<r.end(); ++i) 
+        {
+          if (geometries[i] && geometries[i]->isEnabled()) 
+          {
+            geometries[i]->preCommit();
+            geometries[i]->addElementsToCount (c);
+            c.numFilterFunctions += (int) geometries[i]->hasFilterFunctions();
+          }
+        }
+        return c;
+      },
+      std::plus<GeometryCounts>()
+    );
+    
     /* select acceleration structures to build */
-    if (flags_modified)
-    {    
-      accels.init();
-      createTriangleAccel();
-      createTriangleMBAccel();
-      createQuadAccel();
-      createQuadMBAccel();
-      createGridAccel();
-      createGridMBAccel();
-      createSubdivAccel();
-      createSubdivMBAccel();
-      createHairAccel();
-      createHairMBAccel();
-      createUserGeometryAccel();
-      createUserGeometryMBAccel();
-      createInstanceAccel();
-      createInstanceMBAccel();
+    unsigned int new_enabled_geometry_types = world.enabledGeometryTypesMask();
+    if (flags_modified || new_enabled_geometry_types != enabled_geometry_types)
+    {
+      accels_init();
+
+      /* we need to make all geometries modified, otherwise two level builder will 
+        not rebuild currently not modified geometries */
+      parallel_for(geometryModCounters_.size(), [&] ( const size_t i ) {
+          geometryModCounters_[i] = 0;
+        });
+      
+      if (getNumPrimitives(TriangleMesh::geom_type,false)) createTriangleAccel();
+      if (getNumPrimitives(TriangleMesh::geom_type,true)) createTriangleMBAccel();
+      if (getNumPrimitives(QuadMesh::geom_type,false)) createQuadAccel();
+      if (getNumPrimitives(QuadMesh::geom_type,true)) createQuadMBAccel();
+      if (getNumPrimitives(GridMesh::geom_type,false)) createGridAccel();
+      if (getNumPrimitives(GridMesh::geom_type,true)) createGridMBAccel();
+      if (getNumPrimitives(SubdivMesh::geom_type,false)) createSubdivAccel();
+      if (getNumPrimitives(SubdivMesh::geom_type,true)) createSubdivMBAccel();
+      if (getNumPrimitives(Geometry::MTY_CURVES,false)) createHairAccel();
+      if (getNumPrimitives(Geometry::MTY_CURVES,true)) createHairMBAccel();
+      if (getNumPrimitives(UserGeometry::geom_type,false)) createUserGeometryAccel();
+      if (getNumPrimitives(UserGeometry::geom_type,true)) createUserGeometryMBAccel();
+      if (getNumPrimitives(Geometry::MTY_INSTANCE_CHEAP,false)) createInstanceAccel();
+      if (getNumPrimitives(Geometry::MTY_INSTANCE_CHEAP,true)) createInstanceMBAccel();
+      if (getNumPrimitives(Geometry::MTY_INSTANCE_EXPENSIVE,false)) createInstanceExpensiveAccel();
+      if (getNumPrimitives(Geometry::MTY_INSTANCE_EXPENSIVE,true)) createInstanceExpensiveMBAccel();
+      
       flags_modified = false;
+      enabled_geometry_types = new_enabled_geometry_types;
     }
     
     /* select fast code path if no filter function is present */
-    accels.select(hasFilterFunction());
+    accels_select(hasFilterFunction());
   
     /* build all hierarchies of this scene */
-    accels.build();
+	accels_build();
 
     /* make static geometry immutable */
     if (!isDynamicAccel()) {
-      accels.immutable();
+      accels_immutable();
       flags_modified = true; // in non-dynamic mode we have to re-create accels
     }
 
     /* call postCommit function of each geometry */
     parallel_for(geometries.size(), [&] ( const size_t i ) {
-        if (geometries[i] && geometries[i]->isEnabled())
+        if (geometries[i] && geometries[i]->isEnabled()) {
           geometries[i]->postCommit();
+          vertices[i] = geometries[i]->getCompactVertexArray();
+          geometryModCounters_[i] = geometries[i]->getModCounter();
+        }
       });
       
     updateInterface();
 
     if (device->verbosity(2)) {
       std::cout << "created scene intersector" << std::endl;
-      accels.print(2);
+      accels_print(2);
       std::cout << "selected scene intersector" << std::endl;
       intersectors.print(2);
     }
@@ -726,18 +795,12 @@ namespace embree
       return;
     }
 
-    /* fast path for unchanged scenes */
-    if (!isModified()) {
-      scheduler->spawn_root([&]() { Lock<MutexSys> lock(schedulerMutex); this->scheduler = nullptr; }, 1, !join);
-      return;
-    }
-
     /* initiate build */
     try {
       scheduler->spawn_root([&]() { commit_task(); Lock<MutexSys> lock(schedulerMutex); this->scheduler = nullptr; }, 1, !join);
     }
     catch (...) {
-      accels.clear();
+      accels_clear();
       updateInterface();
       Lock<MutexSys> lock(schedulerMutex);
       this->scheduler = nullptr;
@@ -747,15 +810,10 @@ namespace embree
 
 #endif
 
-#if defined(TASKING_TBB) || defined(TASKING_PPL)
+#if defined(TASKING_TBB)
 
   void Scene::commit (bool join) 
   {
-#if defined(TASKING_PPL)
-    if (join)
-      throw_RTCError(RTC_ERROR_INVALID_OPERATION,"rtcJoinCommitScene not supported with PPL");
-#endif
-    
 #if defined(TASKING_TBB) && (TBB_INTERFACE_VERSION_MAJOR < 8)
     if (join)
       throw_RTCError(RTC_ERROR_INVALID_OPERATION,"rtcJoinCommitScene not supported with this TBB version");
@@ -767,37 +825,36 @@ namespace embree
     /* join hierarchy build */
     if (!lock.isLocked())
     {
+#if !TASKING_TBB_USE_TASK_ISOLATION
       if (!join) 
-        throw_RTCError(RTC_ERROR_INVALID_OPERATION,"use rtcJoinCommitScene to join a build operation");
-      
-#if USE_TASK_ARENA
-      device->arena->execute([&]{ group->wait(); });
-#else
-      group->wait();
+        throw_RTCError(RTC_ERROR_INVALID_OPERATION,"invoking rtcCommitScene from multiple threads is not supported with this TBB version");
 #endif
-      while (!buildMutex.try_lock()) {
+      
+      do {
+
+#if USE_TASK_ARENA
+        if (join) {
+          device->arena->execute([&]{ group->wait(); });
+        }
+        else
+#endif
+        {
+          group->wait();
+        }
+
         pause_cpu();
         yield();
-#if USE_TASK_ARENA
-        device->arena->execute([&]{ group->wait(); });
-#else
-        group->wait();
-#endif
-      }
+      } while (!buildMutex.try_lock());
+      
       buildMutex.unlock();
       return;
-    }
-
-    if (!isModified()) {
-      return;
-    }
+    }   
 
     /* for best performance set FTZ and DAZ flags in the MXCSR control and status register */
-    unsigned int mxcsr = _mm_getcsr();
+    const unsigned int mxcsr = _mm_getcsr();
     _mm_setcsr(mxcsr | /* FTZ */ (1<<15) | /* DAZ */ (1<<6));
     
     try {
-#if defined(TASKING_TBB)
 #if TBB_INTERFACE_VERSION_MAJOR < 8    
       tbb::task_group_context ctx( tbb::task_group_context::isolated, tbb::task_group_context::default_traits);
 #else
@@ -806,32 +863,76 @@ namespace embree
       //ctx.set_priority(tbb::priority_high);
 
 #if USE_TASK_ARENA
-      device->arena->execute([&]{
+      if (join)
+      {
+        device->arena->execute([&]{
+            group->run([&]{
+                tbb::parallel_for (size_t(0), size_t(1), size_t(1), [&] (size_t) { commit_task(); }, ctx);
+              });
+            group->wait();
+          });
+      }
+      else
 #endif
-          group->run([&]{
-              tbb::parallel_for (size_t(0), size_t(1), size_t(1), [&] (size_t) { commit_task(); }, ctx);
-            });
-          group->wait();
-#if USE_TASK_ARENA
-        }); 
-#endif
+      {
+        group->run([&]{
+            tbb::parallel_for (size_t(0), size_t(1), size_t(1), [&] (size_t) { commit_task(); }, ctx);
+          });
+        group->wait();
+      }
      
       /* reset MXCSR register again */
       _mm_setcsr(mxcsr);
-#else
+    } 
+    catch (...)
+    {
+      /* reset MXCSR register again */
+      _mm_setcsr(mxcsr);
+      
+      accels_clear();
+      updateInterface();
+      throw;
+    }
+  }
+#endif
+
+#if defined(TASKING_PPL)
+
+  void Scene::commit (bool join) 
+  {
+#if defined(TASKING_PPL)
+    if (join)
+      throw_RTCError(RTC_ERROR_INVALID_OPERATION,"rtcJoinCommitScene not supported with PPL");
+#endif
+
+    /* try to obtain build lock */
+    Lock<MutexSys> lock(buildMutex);
+
+    checkIfModifiedAndSet ();
+    if (!isModified()) {
+      return;
+    }
+
+    /* for best performance set FTZ and DAZ flags in the MXCSR control and status register */
+    const unsigned int mxcsr = _mm_getcsr();
+    _mm_setcsr(mxcsr | /* FTZ */ (1<<15) | /* DAZ */ (1<<6));
+    
+    try {
+
       group->run([&]{
           concurrency::parallel_for(size_t(0), size_t(1), size_t(1), [&](size_t) { commit_task(); });
         });
       group->wait();
 
-#endif
+       /* reset MXCSR register again */
+      _mm_setcsr(mxcsr);
     } 
-    catch (...) {
-
+    catch (...)
+    {
       /* reset MXCSR register again */
       _mm_setcsr(mxcsr);
       
-      accels.clear();
+      accels_clear();
       updateInterface();
       throw;
     }

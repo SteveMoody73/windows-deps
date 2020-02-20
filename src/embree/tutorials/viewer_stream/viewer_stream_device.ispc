@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -203,6 +203,11 @@ void postIntersectGeometry(const Ray& ray, DifferentialGeometry& dg, uniform ISP
     uniform ISPCQuadMesh* uniform mesh = (uniform ISPCQuadMesh* uniform) geometry;
     materialID = mesh->geom.materialID;
   }
+  else if (geometry->type == GRID_MESH)
+  {
+    uniform ISPCGridMesh* uniform mesh = (uniform ISPCGridMesh* uniform) geometry;
+    materialID = mesh->geom.materialID;
+  }
   else if (geometry->type == SUBDIV_MESH)
   {
     uniform ISPCSubdivMesh* uniform mesh = (uniform ISPCSubdivMesh* uniform) geometry;
@@ -240,7 +245,7 @@ typedef ISPCInstance* uniform ISPCInstancePtr;
 inline int postIntersect(const Ray& ray, DifferentialGeometry& dg)
 {
   int materialID = 0;
-  foreach_unique (instID in ray.instID) {
+  foreach_unique (instID in ray.instID[0]) {
     foreach_unique (geomID in ray.geomID) {
       ISPCGeometry* uniform geometry = NULL;
       if (g_instancing_mode != ISPC_INSTANCING_NONE) {
@@ -255,7 +260,7 @@ inline int postIntersect(const Ray& ray, DifferentialGeometry& dg)
 
   if (g_instancing_mode != ISPC_INSTANCING_NONE)
   {
-    foreach_unique (instID in ray.instID)
+    foreach_unique (instID in ray.instID[0])
     {
       /* get instance and geometry pointers */
       ISPCInstance* uniform instance = (ISPCInstancePtr) g_ispc_scene->geometries[instID];

@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -31,6 +31,7 @@
 #include "../../common/sys/vector.h"
 
 #include "../../common/math/math.h"
+#include "../../common/math/transcendental.h"
 #include "../../common/simd/simd.h"
 #include "../../common/math/vec2.h"
 #include "../../common/math/vec3.h"
@@ -58,6 +59,7 @@
 #include "rtcore.h"
 #include "vector.h"
 #include "state.h"
+#include "instance_stack.h"
 
 #include <vector>
 #include <map>
@@ -219,18 +221,61 @@ namespace embree
   /// Other shortcuts
   ////////////////////////////////////////////////////////////////////////////////
 
-  template<int N> using LinearSpace3vf = LinearSpace3<Vec3vf<N>>;
-  typedef LinearSpace3<Vec3vf4>  LinearSpace3vf4;
-  typedef LinearSpace3<Vec3vf8>  LinearSpace3vf8;
-  typedef LinearSpace3<Vec3vf16> LinearSpace3vf16;
-
-  template<int N> using AffineSpace3vf = AffineSpaceT<LinearSpace3<Vec3vf<N>>>;
-  typedef AffineSpaceT<LinearSpace3<Vec3vf4>>  AffineSpace3vf4;
-  typedef AffineSpaceT<LinearSpace3<Vec3vf8>>  AffineSpace3vf8;
-  typedef AffineSpaceT<LinearSpace3<Vec3vf16>> AffineSpace3vf16;
-
   template<int N> using BBox3vf = BBox<Vec3vf<N>>;
   typedef BBox<Vec3vf4>  BBox3vf4;
   typedef BBox<Vec3vf8>  BBox3vf8;
   typedef BBox<Vec3vf16> BBox3vf16;
+
+  /* calculate time segment itime and fractional time ftime */
+  __forceinline int getTimeSegment(float time, float numTimeSegments, float& ftime)
+  {
+    const float timeScaled = time * numTimeSegments;
+    const float itimef = clamp(floorf(timeScaled), 0.0f, numTimeSegments-1.0f);
+    ftime = timeScaled - itimef;
+    return int(itimef);
+  }
+
+  __forceinline int getTimeSegment(float time, float start_time, float end_time, float numTimeSegments, float& ftime)
+  {
+    const float timeScaled = (time-start_time)/(end_time-start_time) * numTimeSegments;
+    const float itimef = clamp(floorf(timeScaled), 0.0f, numTimeSegments-1.0f);
+    ftime = timeScaled - itimef;
+    return int(itimef);
+  }
+
+  template<int N>
+  __forceinline vint<N> getTimeSegment(const vfloat<N>& time, const vfloat<N>& numTimeSegments, vfloat<N>& ftime)
+  {
+    const vfloat<N> timeScaled = time * numTimeSegments;
+    const vfloat<N> itimef = clamp(floor(timeScaled), vfloat<N>(zero), numTimeSegments-1.0f);
+    ftime = timeScaled - itimef;
+    return vint<N>(itimef);
+  }
+
+  template<int N>
+    __forceinline vint<N> getTimeSegment(const vfloat<N>& time, const vfloat<N>& start_time, const vfloat<N>& end_time, const vfloat<N>& numTimeSegments, vfloat<N>& ftime)
+  {
+    const vfloat<N> timeScaled = (time-start_time)/(end_time-start_time) * numTimeSegments;
+    const vfloat<N> itimef = clamp(floor(timeScaled), vfloat<N>(zero), numTimeSegments-1.0f);
+    ftime = timeScaled - itimef;
+    return vint<N>(itimef);
+  }
+
+  /* calculate overlapping time segment range */
+  __forceinline range<int> getTimeSegmentRange(const BBox1f& time_range, float numTimeSegments)
+  {
+    const float round_up   = 1.0f+2.0f*float(ulp); // corrects inaccuracies to precisely match time step
+    const float round_down = 1.0f-2.0f*float(ulp);
+    const int itime_lower = (int)max(floor(round_up  *time_range.lower*numTimeSegments), 0.0f);
+    const int itime_upper = (int)min(ceil (round_down*time_range.upper*numTimeSegments), numTimeSegments);
+    return make_range(itime_lower, itime_upper);
+  }
+
+  /* calculate overlapping time segment range */
+  __forceinline range<int> getTimeSegmentRange(const BBox1f& range, BBox1f time_range, float numTimeSegments)
+  {
+    const float lower = (range.lower-time_range.lower)/time_range.size();
+    const float upper = (range.upper-time_range.lower)/time_range.size();
+    return getTimeSegmentRange(BBox1f(lower,upper),numTimeSegments);
+  }
 }

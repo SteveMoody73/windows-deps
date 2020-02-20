@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -138,10 +138,10 @@ namespace embree
     template<typename BVH, typename SetMB, typename Allocator>
     __forceinline static typename BVH::NodeRecordMB4D createLeafMB(BVH* bvh, const SetMB& prims, const Allocator& alloc)
     {
-      size_t start = prims.object_range.begin();
-      size_t end   = prims.object_range.end();
-      size_t items = CurveNiMB::blocks(prims.object_range.size());
-      size_t numbytes = CurveNiMB::bytes(prims.object_range.size());
+      size_t start = prims.begin();
+      size_t end   = prims.end();
+      size_t items = CurveNiMB::blocks(prims.size());
+      size_t numbytes = CurveNiMB::bytes(prims.size());
       CurveNiMB* accel = (CurveNiMB*) alloc.malloc1(numbytes,BVH::byteAlignment);
       const typename BVH::NodeRef node = bvh->encodeLeaf((char*)accel,items);
       

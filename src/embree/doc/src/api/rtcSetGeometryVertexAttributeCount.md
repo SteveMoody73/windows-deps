@@ -23,13 +23,14 @@ specified geometry (`geometry` parameter).
 
 This function is supported only for triangle meshes
 (`RTC_GEOMETRY_TYPE_TRIANGLE`), quad meshes
-(`RTC_GEOMETRY_TYPE_QUAD`), curves (`RTC_GEOMETRY_TYPE_CURVE`), and
+(`RTC_GEOMETRY_TYPE_QUAD`), curves (`RTC_GEOMETRY_TYPE_CURVE`),
+points (`RTC_GEOMETRY_TYPE_POINT`), and
 subdivision geometries (`RTC_GEOMETRY_TYPE_SUBDIVISION`).
 
 #### EXIT STATUS
 
 On failure an error code is set that can be queried using
-`rtcDeviceGetError`.
+`rtcGetDeviceError`.
 
 #### SEE ALSO
 

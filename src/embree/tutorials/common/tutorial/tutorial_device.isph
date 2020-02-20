@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -28,6 +28,7 @@ struct Triangle { int v0, v1, v2; };
 
 /* include embree API */
 #include "../../../include/embree3/rtcore.isph"
+RTC_NAMESPACE_OPEN
 
 /* include optional vector library */
 #include "../math/math.isph"
@@ -115,22 +116,6 @@ uniform unsigned int getNumHWThreads();
 #define ALIGNED_STRUCT_(x)
 #define __aligned(x)
 #define MAYBE_UNUSED
-#endif
-
-struct Sample3f
-{
-  Vec3f v;
-  float pdf;
-};
-
-inline uniform Sample3f make_Sample3f(const uniform Vec3f& v, const uniform float pdf) {
-  uniform Sample3f s; s.v = v; s.pdf = pdf; return s;
-}
-
-#if defined(ISPC)
-inline Sample3f make_Sample3f(const Vec3f& v, const float pdf) {
-  Sample3f s; s.v = v; s.pdf = pdf; return s;
-}
 #endif
 
 /* draws progress bar */

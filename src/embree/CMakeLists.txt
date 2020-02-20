@@ -1,5 +1,5 @@
 ## ======================================================================== ##
-## Copyright 2009-2018 Intel Corporation                                    ##
+## Copyright 2009-2020 Intel Corporation                                    ##
 ##                                                                          ##
 ## Licensed under the Apache License, Version 2.0 (the "License");          ##
 ## you may not use this file except in compliance with the License.         ##
@@ -15,7 +15,7 @@
 ## ======================================================================== ##
 
 SET(EMBREE_VERSION_MAJOR 3)
-SET(EMBREE_VERSION_MINOR 2)
+SET(EMBREE_VERSION_MINOR 8)
 SET(EMBREE_VERSION_PATCH 0)
 SET(EMBREE_VERSION_NOTE "")
 
@@ -27,21 +27,26 @@ PROJECT(embree${EMBREE_VERSION_MAJOR})
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.11)
 
+# We use our own strip tool on macOS to sign during install. This is required as CMake modifies RPATH of the binary during install.
+IF (APPLE AND EMBREE_SIGN_FILE)
+  SET(EMBREE_STRIP ${CMAKE_STRIP})
+  SET(CMAKE_STRIP ${PROJECT_BINARY_DIR}/post_install_target.sh)
+  CONFIGURE_FILE(scripts/post_install_target.sh.in ${PROJECT_BINARY_DIR}/post_install_target.sh @ONLY)
+ENDIF()
+
 MACRO (SIGN_TARGET target)
   IF (EMBREE_SIGN_FILE)
     IF (WIN32)
-      # on Windows we only strip as debug symbols not included in binary
+      # on Windows we sign and do not strip as debug symbols not included in binary
       ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD
-        COMMAND ${EMBREE_SIGN_FILE} -vv -c embree $<TARGET_FILE:${target}>)
+        COMMAND ${EMBREE_SIGN_FILE} $<TARGET_FILE:${target}>)
     ELSEIF (APPLE)
-      # on MacOSX we strip and sign
+      # on MacOSX we strip and sign here for testing purposes but also during install, as CMake modifies binary during install
       ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD
-        COMMAND ${CMAKE_STRIP} -x $<TARGET_FILE:${target}>
-        COMMAND ${EMBREE_SIGN_FILE} -vv -c embree $<TARGET_FILE:${target}>)
+        COMMAND ${EMBREE_STRIP} -x $<TARGET_FILE:${target}>
+        COMMAND ${EMBREE_SIGN_FILE} -o runtime -e ${CMAKE_SOURCE_DIR}/common/cmake/embree.entitlements $<TARGET_FILE:${target}>)
     ELSE()
-      # on Linux just strip as signing not supported
-      ADD_CUSTOM_COMMAND(TARGET ${target} POST_BUILD
-        COMMAND ${CMAKE_STRIP} -x $<TARGET_FILE:${target}>)
+      # on Linux signing of binaries is not supported and stripping is done during install
     ENDIF()
   ENDIF()
 ENDMACRO()
@@ -61,21 +66,15 @@ IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   ENDIF()
 ENDIF()
 
-CONFIGURE_FILE(
-  "${PROJECT_SOURCE_DIR}/kernels/rtcore_version.h.in"
-  "${PROJECT_SOURCE_DIR}/include/embree3/rtcore_version.h"
-)
-CONFIGURE_FILE(
-  "${PROJECT_SOURCE_DIR}/kernels/hash.h.in"
-  "${PROJECT_SOURCE_DIR}/kernels/hash.h"
-)
-
 IF(COMMAND cmake_policy)
   if (POLICY CMP0003)
     cmake_policy(SET CMP0003 NEW)
   endif()
   if (POLICY CMP0042)
-    cmake_policy(SET CMP0042 OLD)
+    cmake_policy(SET CMP0042 NEW)
+  endif()
+  if(POLICY CMP0072)
+    cmake_policy(SET CMP0072 OLD)
   endif()
 ENDIF(COMMAND cmake_policy)
 
@@ -90,7 +89,9 @@ MARK_AS_ADVANCED(CLEAR CMAKE_CXX_COMPILER)
 
 SET(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/common/cmake ${CMAKE_MODULE_PATH})
 
-INCLUDE(test)
+IF (BUILD_TESTING)
+  INCLUDE(test)
+ENDIF()
 
 ##############################################################
 # Embree configuration
@@ -106,16 +107,21 @@ ELSE()
 ENDIF()
 IF (EMBREE_STATIC_LIB)
   SET(EMBREE_LIB_TYPE STATIC)
-  ADD_DEFINITIONS(-DEMBREE_STATIC_LIB)
 ELSE()
   SET(EMBREE_LIB_TYPE SHARED)
 ENDIF()
 
 OPTION(EMBREE_ISPC_SUPPORT "Build Embree with support for ISPC applications." ON)
 OPTION(EMBREE_TUTORIALS    "Enable to build Embree tutorials" ON)
+SET(EMBREE_API_NAMESPACE "" CACHE STRING "C++ namespace to put API symbols into.")
+SET(EMBREE_LIBRARY_NAME  "embree${EMBREE_VERSION_MAJOR}" CACHE STRING "Name of the embree library file (default is embree${EMBREE_VERSION_MAJOR})")
+
+IF (EMBREE_API_NAMESPACE AND EMBREE_ISPC_SUPPORT)
+   MESSAGE(FATAL_ERROR "You cannot enable ISPC when EMBREE_API_NAMESPACE is used.")
+ENDIF()
 
 ##############################################################################
-# Configurations (add configurations also to common/cmake/embree-config-default.cmake)
+# Configurations (add configurations also to common/cmake/embree-config.cmake)
 
 OPTION(EMBREE_INSTALL_DEPENDENCIES "Install Embree dependencies in binary packages and install" OFF)
 MARK_AS_ADVANCED(EMBREE_INSTALL_DEPENDENCIES)
@@ -135,7 +141,11 @@ OPTION(EMBREE_GEOMETRY_SUBDIVISION "Enables support for subdiv geometries." ON)
 OPTION(EMBREE_GEOMETRY_USER "Enables support for user geometries." ON)
 OPTION(EMBREE_GEOMETRY_INSTANCE "Enables support for instances." ON)
 OPTION(EMBREE_GEOMETRY_GRID "Enables support for grid geometries." ON)
+OPTION(EMBREE_GEOMETRY_POINT "Enables support for point geometries." ON)
 OPTION(EMBREE_RAY_PACKETS "Enabled support for ray packets." ON)
+
+SET(EMBREE_MAX_INSTANCE_LEVEL_COUNT 1 CACHE STRING "Maximum number of instance levels.")
+SET(EMBREE_CURVE_SELF_INTERSECTION_AVOIDANCE_FACTOR 2.0 CACHE STRING "Self intersection avoidance factor for flat curves. Specify floating point value in range 0 to inf.")
 
 SET(EMBREE_TASKING_SYSTEM "TBB" CACHE STRING "Selects tasking system")
 IF (WIN32)
@@ -163,11 +173,6 @@ ELSE()
   ADD_DEFINITIONS(-DTASKING_INTERNAL)
   LIST(APPEND ISPC_DEFINITIONS -DTASKING_INTERNAL)
 ENDIF()
-
-CONFIGURE_FILE(
-  "${PROJECT_SOURCE_DIR}/kernels/config.h.in"
-  "${PROJECT_SOURCE_DIR}/kernels/config.h"
-)
 
 ##############################################################
 # Compiler
@@ -199,7 +204,8 @@ ELSE (WIN32)
   IF(CMAKE_CXX_COMPILER_WRAPPER STREQUAL "CrayPrgEnv")
     INCLUDE (crayprgenv)
   ELSE()
-    STRING(TOLOWER "${CMAKE_CXX_COMPILER_ID}" _LOWER_CXX_COMPILER_ID) 
+    STRING(TOLOWER "${CMAKE_CXX_COMPILER_ID}" _LOWER_CXX_COMPILER_ID)
+    STRING(REPLACE "appleclang" "clang" _LOWER_CXX_COMPILER_ID ${_LOWER_CXX_COMPILER_ID})
     INCLUDE(${_LOWER_CXX_COMPILER_ID} OPTIONAL RESULT_VARIABLE COMPILER_FOUND)
     IF (NOT COMPILER_FOUND)
       MESSAGE(FATAL_ERROR "Unsupported compiler: " ${CMAKE_CXX_COMPILER_ID})
@@ -228,11 +234,15 @@ ENDIF()
 SET_PROPERTY(CACHE EMBREE_MAX_ISA PROPERTY STRINGS NONE SSE2 SSE4.2 AVX AVX2 AVX512KNL AVX512SKX DEFAULT)
 
 IF (EMBREE_MAX_ISA STREQUAL "NONE")
-  TRY_COMPILE(COMPILER_SUPPORTS_AVX       ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/common/cmake/check_isa.cpp COMPILE_DEFINITIONS ${FLAGS_AVX})
-  TRY_COMPILE(COMPILER_SUPPORTS_AVX2      ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/common/cmake/check_isa.cpp COMPILE_DEFINITIONS ${FLAGS_AVX2})
-  TRY_COMPILE(COMPILER_SUPPORTS_AVX512KNL ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/common/cmake/check_isa.cpp COMPILE_DEFINITIONS ${FLAGS_AVX512KNL})
-  TRY_COMPILE(COMPILER_SUPPORTS_AVX512SKX ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/common/cmake/check_isa.cpp COMPILE_DEFINITIONS ${FLAGS_AVX512SKX})
-  
+  TRY_COMPILE(COMPILER_SUPPORTS_AVX       ${CMAKE_BINARY_DIR} ${PROJECT_SOURCE_DIR}/common/cmake/check_isa.cpp COMPILE_DEFINITIONS ${FLAGS_AVX})
+  TRY_COMPILE(COMPILER_SUPPORTS_AVX2      ${CMAKE_BINARY_DIR} ${PROJECT_SOURCE_DIR}/common/cmake/check_isa.cpp COMPILE_DEFINITIONS ${FLAGS_AVX2})
+  TRY_COMPILE(COMPILER_SUPPORTS_AVX512KNL ${CMAKE_BINARY_DIR} ${PROJECT_SOURCE_DIR}/common/cmake/check_isa.cpp COMPILE_DEFINITIONS ${FLAGS_AVX512KNL})
+  TRY_COMPILE(COMPILER_SUPPORTS_AVX512SKX ${CMAKE_BINARY_DIR} ${PROJECT_SOURCE_DIR}/common/cmake/check_isa.cpp COMPILE_DEFINITIONS ${FLAGS_AVX512SKX})
+
+  IF (${CMAKE_CXX_COMPILER_ID} STREQUAL GNU)
+    SET(COMPILER_SUPPORTS_AVX512SKX OFF)  # we disable this by default as GCC agressively produces AVX512 heavy instructions which reduce CPU frequency
+  ENDIF()
+
   OPTION(EMBREE_ISA_SSE2 "Enables SSE2 ISA." ON)
   OPTION(EMBREE_ISA_SSE42 "Enables SSE4.2 ISA." ON)
   OPTION(EMBREE_ISA_AVX "Enables AVX ISA." ${COMPILER_SUPPORTS_AVX})
@@ -257,10 +267,10 @@ ELSEIF (EMBREE_MAX_ISA STREQUAL "DEFAULT")
   SET(EMBREE_ISA_AVX2 OFF)
   SET(EMBREE_ISA_AVX512KNL OFF)
   SET(EMBREE_ISA_AVX512SKX OFF)
-  MESSAGE(STATUS "Detecting default ISA:")
+  MESSAGE(STATUS "Detecting default ISA...")
   INCLUDE(check_isa_default)
   CHECK_ISA_DEFAULT(EMBREE_ISA_DEFAULT)
-  MESSAGE(STATUS "Detecting default ISA: ${EMBREE_ISA_DEFAULT}")
+  MESSAGE(STATUS "Detected default ISA: ${EMBREE_ISA_DEFAULT}")
   SET(EMBREE_ISA_${EMBREE_ISA_DEFAULT} ON)
 ELSE()
   UNSET(EMBREE_ISA_SSE2 CACHE)
@@ -311,6 +321,48 @@ ELSE()
   IF (ISA GREATER 5)
     SET(EMBREE_ISA_AVX512SKX  ON)
   ENDIF ()
+ENDIF()
+
+IF(CMAKE_CXX_COMPILER_WRAPPER STREQUAL "CrayPrgEnv")
+  SET(EMBREE_ISA_SSE42 OFF)
+ENDIF()
+
+IF (APPLE AND EMBREE_STATIC_LIB)
+
+  # count number of set ISAs
+  SET(NUMISA 0)
+  IF (EMBREE_ISA_SSE2)
+    MATH(EXPR NUMISA "${NUMISA}+1")
+  ENDIF()
+  IF (EMBREE_ISA_SSE42)
+    MATH(EXPR NUMISA "${NUMISA}+1")
+  ENDIF()
+  IF (EMBREE_ISA_AVX)
+    MATH(EXPR NUMISA "${NUMISA}+1")
+  ENDIF()
+  IF (EMBREE_ISA_AVX2)
+    MATH(EXPR NUMISA "${NUMISA}+1")
+  ENDIF()
+  IF (EMBREE_ISA_AVX512KNL)
+    MATH(EXPR NUMISA "${NUMISA}+1")
+  ENDIF()
+  IF (EMBREE_ISA_AVX512SKX)
+    MATH(EXPR NUMISA "${NUMISA}+1")
+  ENDIF()
+
+  IF (NUMISA GREATER 1)
+    IF (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+      IF (${CMAKE_CXX_COMPILER_VERSION} MATCHES "^9\\..*")
+        MESSAGE(FATAL_ERROR "Using Embree as static library is not supported with AppleClang 9.X when multiple ISAs are selected. Please either build a shared library or enable only one ISA.")
+      ENDIF()
+    ENDIF()
+  ENDIF()
+ENDIF()
+
+IF (${CMAKE_CXX_COMPILER_ID} STREQUAL GNU)
+  IF (EMBREE_ISA_AVX512SKX)
+    MESSAGE(WARNING "Enabling AVX512SKX on GCC may reduce CPU frequency.")
+  ENDIF()
 ENDIF()
 
 ##############################################################
@@ -370,6 +422,7 @@ IF (EMBREE_ISA_AVX512KNL)
   LIST(APPEND ISPC_TARGETS "avx512knl-i32x16")
   IF(NOT FLAGS_LOWEST)
     SET(ISA_LOWEST ${AVX512KNL})
+    SET(ISA_LOWEST_AVX ${AVX512KNL})
     SET(FLAGS_LOWEST ${FLAGS_AVX512KNL})
   ENDIF()
 ENDIF ()
@@ -390,6 +443,33 @@ INCLUDE (ispc)
 # Create Binary Packages (uses above config options)
 ##############################################################
 include(package)
+
+##############################################################
+# Create Config files
+##############################################################
+
+CONFIGURE_FILE(
+  "${PROJECT_SOURCE_DIR}/kernels/config.h.in"
+  "${PROJECT_SOURCE_DIR}/kernels/config.h"
+)
+
+CONFIGURE_FILE(
+  "${PROJECT_SOURCE_DIR}/kernels/rtcore_config.h.in"
+  "${PROJECT_SOURCE_DIR}/include/embree3/rtcore_config.h"
+)
+
+CONFIGURE_FILE(
+  "${PROJECT_SOURCE_DIR}/kernels/hash.h.in"
+  "${PROJECT_SOURCE_DIR}/kernels/hash.h"
+)
+CONFIGURE_FILE(
+  "${PROJECT_SOURCE_DIR}/kernels/export.linux.map.in"
+  "${PROJECT_SOURCE_DIR}/kernels/export.linux.map"
+)
+CONFIGURE_FILE(
+  "${PROJECT_SOURCE_DIR}/kernels/export.macosx.map.in"
+  "${PROJECT_SOURCE_DIR}/kernels/export.macosx.map"
+)
 
 ##############################################################
 # Search paths
@@ -433,4 +513,5 @@ SET_PROPERTY(TARGET uninstall PROPERTY FOLDER CMakePredefinedTargets)
 ##############################################################
 # Has to be last
 ##############################################################
+
 INCLUDE(CPack)

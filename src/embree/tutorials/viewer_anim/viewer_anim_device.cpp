@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -15,9 +15,9 @@
 // ======================================================================== //
 
 #include "../common/math/random_sampler.h"
-#include "../common/math/sampling.h"
 #include "../common/tutorial/tutorial_device.h"
 #include "../common/tutorial/scene_device.h"
+#include "../common/math/sampling.h"
 
 namespace embree {
 
@@ -455,7 +455,7 @@ extern "C" void device_render (int* pixels,
 #if ENABLE_ANIM == 1
 
   if (animTime < 0.0f) animTime = getTime();
-  const double atime = (getTime() - animTime) * ANIM_FPS;
+  const float atime = (float)((getTime() - animTime) * ANIM_FPS);
   const unsigned int intpart = (unsigned int)floor(atime);
   const double fracpart = atime - (double)intpart;
   const unsigned int keyFrameID = intpart;

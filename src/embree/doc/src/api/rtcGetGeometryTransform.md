@@ -32,13 +32,13 @@ Possible formats for the returned matrix are:
   in column-major form.
 
 + `RTC_FORMAT_FLOAT4X4_COLUMN_MAJOR`: The 3×4 float matrix is laid out
-  in column-major form as a 4x4 homogeneous matrix with last row equal
+  in column-major form as a 4×4 homogeneous matrix with last row equal
   to (0, 0, 0, 1).
 
 #### EXIT STATUS
 
 On failure an error code is set that can be queried using
-`rtcDeviceGetError`.
+`rtcGetDeviceError`.
 
 #### SEE ALSO
 

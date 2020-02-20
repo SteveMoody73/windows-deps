@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -220,6 +220,15 @@ namespace embree
         const Vec3fa q1 = xfmVector(space,v1-p);
         const Vec3fa q2 = xfmVector(space,v2-p);
         const Vec3fa q3 = xfmVector(space,v3-p);
+        return CubicBezierCurve<Vec3fa>(q0,q1,q2,q3);
+      }
+
+      __forceinline CubicBezierCurve<Vec3fa> xfm_pr(const LinearSpace3fa& space, const Vec3fa& p) const
+      {
+        Vec3fa q0 = xfmVector(space,v0-p); q0.w = v0.w;
+        Vec3fa q1 = xfmVector(space,v1-p); q1.w = v1.w;
+        Vec3fa q2 = xfmVector(space,v2-p); q2.w = v2.w;
+        Vec3fa q3 = xfmVector(space,v3-p); q3.w = v3.w;
         return CubicBezierCurve<Vec3fa>(q0,q1,q2,q3);
       }
 

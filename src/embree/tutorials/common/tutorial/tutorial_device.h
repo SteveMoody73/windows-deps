@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -28,6 +28,7 @@ struct Triangle { int v0, v1, v2; };
 
 /* include embree API */
 #include "../../../include/embree3/rtcore.h"
+RTC_NAMESPACE_OPEN
 
 /* include optional vector library */
 #include "../math/math.h"
@@ -119,22 +120,6 @@ unsigned int getNumHWThreads();
 #define MAYBE_UNUSED
 #endif
 
-struct Sample3f
-{
-  Vec3fa v;
-  float pdf;
-};
-
-inline Sample3f make_Sample3f(const Vec3fa& v, const float pdf) {
-  Sample3f s; s.v = v; s.pdf = pdf; return s;
-}
-
-#if defined(ISPC)
-inline Sample3f make_Sample3f(const Vec3fa& v, const float pdf) {
-  Sample3f s; s.v = v; s.pdf = pdf; return s;
-}
-#endif
-
 /* draws progress bar */
 extern "C" void progressStart();
 extern "C" bool progressMonitor(void* ptr, const double n);
@@ -160,8 +145,8 @@ struct RayStats
 
 #if defined(RAY_STATS)
 #if defined(ISPC)
-inline void RayStats_addRay(RayStats& stats)       { stats.numRays += popcnt(lanemask()); }
-inline void RayStats_addShadowRay(RayStats& stats) { stats.numRays += popcnt(lanemask()); }
+inline void RayStats_addRay(RayStats& stats)       { stats.numRays += popcnt(1); }
+inline void RayStats_addShadowRay(RayStats& stats) { stats.numRays += popcnt(1); }
 #else // C++
 __forceinline void RayStats_addRay(RayStats& stats)        { stats.numRays++; }
 __forceinline void RayStats_addShadowRay(RayStats& stats)  { stats.numRays++; }

@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -103,16 +103,6 @@ inline Vec3f sample_component2(const Vec3f& c0, const Sample3f& wi0, const Mediu
     wi_o = make_Sample3f(wi1.v,wi1.pdf*CP1);
     medium_o = medium1; return c1;
   }
-}
-
-/*! Cosine weighted hemisphere sampling. Up direction is provided as argument. */
-inline Sample3f cosineSampleHemisphere(const float  u, const float  v, const Vec3f& N)
-{
-  Vec3f localDir = cosineSampleHemisphere(make_Vec2f(u,v));
-  Sample3f s;
-  s.v = frame(N) * localDir;
-  s.pdf = cosineSampleHemispherePDF(localDir);
-  return s;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1438,7 +1428,7 @@ unmasked void intersectionFilterOBJ(const RTCFilterFunctionNArguments* uniform a
   //const float tfar          = RTCHitN_t(hit,N,rayID);
   const float tfar          = ray->tfar;
   DifferentialGeometry dg;
-  dg.instID = RTCHitN_instID(hit,N,rayID,0);
+  dg.instID = RTCHitN_instID(hit,N,rayID, 0);
   dg.geomID = RTCHitN_geomID(hit,N,rayID);
   dg.primID = RTCHitN_primID(hit,N,rayID);
   dg.u = RTCHitN_u(hit,N,rayID);
@@ -1513,7 +1503,7 @@ unmasked void occlusionFilterOBJ(const RTCFilterFunctionNArguments* uniform args
   const float tfar          = ray->tfar;
 
   DifferentialGeometry dg;
-  dg.instID = RTCHitN_instID(hit,N,rayID,0);
+  dg.instID = RTCHitN_instID(hit,N,rayID, 0);
   dg.geomID = RTCHitN_geomID(hit,N,rayID);
   dg.primID = RTCHitN_primID(hit,N,rayID);
   dg.u = RTCHitN_u(hit,N,rayID);
@@ -1629,7 +1619,7 @@ Vec3f renderPixelFunction(float x, float y, RandomSampler& sampler, const unifor
     Vec3f Ns = normalize(ray.Ng);
 
     /* compute differential geometry */
-    dg.instID = ray.instID;
+    dg.instID = ray.instID[0];
     dg.geomID = ray.geomID;
     dg.primID = ray.primID;
     dg.u = ray.u;

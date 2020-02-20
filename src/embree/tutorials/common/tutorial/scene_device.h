@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -74,8 +74,8 @@ namespace embree
 #endif
   };
 
-  enum ISPCType { TRIANGLE_MESH, SUBDIV_MESH, CURVES, INSTANCE, GROUP, QUAD_MESH, GRID_MESH };
-  
+  enum ISPCType { TRIANGLE_MESH, SUBDIV_MESH, CURVES, INSTANCE, GROUP, QUAD_MESH, GRID_MESH, POINTS };
+
   struct ISPCGeometry
   {
 #if !defined(ISPC)
@@ -115,7 +115,9 @@ namespace embree
     Vec3fa** normals;       //!< vertex normal array
     Vec2f* texcoords;      //!< vertex texcoord array
     ISPCTriangle* triangles;  //!< list of triangles
-    
+
+    float startTime;
+    float endTime;
     unsigned int numTimeSteps;
     unsigned int numVertices;
     unsigned int numTriangles; 
@@ -139,7 +141,9 @@ namespace embree
     Vec3fa** normals;       //!< vertex normal array
     Vec2f* texcoords;     //!< vertex texcoord array
     ISPCQuad* quads;      //!< list of quads
-    
+
+    float startTime;
+    float endTime;
     unsigned int numTimeSteps;
     unsigned int numVertices;
     unsigned int numQuads;
@@ -176,7 +180,9 @@ namespace embree
     unsigned int* vertex_creases;          //!< indices of vertex creases
     float* vertex_crease_weights; //!< weight for each vertex crease
     unsigned int* face_offsets;
-    
+
+    float startTime;
+    float endTime;
     unsigned int numTimeSteps;
     unsigned int numVertices;
     unsigned int numFaces;
@@ -205,6 +211,7 @@ namespace embree
     Vec3fa** positions;       //!< hair control points (x,y,z,r)
     Vec3fa** normals;         //!< normal control points (x,y,z,r)
     Vec3fa** tangents;        //!< tangent control points (x,y,z,r)
+    Vec3fa** dnormals;         //!< normal derivative control points (x,y,z,r)
     ISPCHair* hairs;          //!< for each hair, index to first control point
 #if !defined(ISPC)
     unsigned char* flags;     //!< end cap flags per segment
@@ -212,11 +219,35 @@ namespace embree
     uint8* flags;             //!< end cap flags per segment
 #endif
     RTCGeometryType type;
+    float startTime;
+    float endTime;
     unsigned int numTimeSteps;
     unsigned int numVertices;
     unsigned int numHairs;
     unsigned int numHairCurves;
     unsigned int tessellation_rate;
+  };
+
+  struct ISPCPointSet
+  {
+#if !defined(ISPC)
+    ISPCPointSet (TutorialScene* scene_in, RTCGeometryType type, Ref<SceneGraph::PointSetNode> in);
+    ~ISPCPointSet();
+
+  private:
+    ISPCPointSet (const ISPCPointSet& other) DELETED; // do not implement
+    ISPCPointSet& operator= (const ISPCPointSet& other) DELETED; // do not implement
+
+  public:
+#endif
+
+    ISPCGeometry geom;
+    Vec3fa** positions;       //!< hair control points (x,y,z,r)
+    Vec3fa** normals;         //!< normal control points (x,y,z,r)
+
+    RTCGeometryType type;
+    unsigned int numTimeSteps;
+    unsigned int numVertices;
   };
 
   struct ISPCGridMesh
@@ -235,7 +266,9 @@ namespace embree
     ISPCGeometry geom;
     Vec3fa** positions;    //!< vertex position array
     ISPCGrid* grids;      //!< list of quads
-    
+
+    float startTime;
+    float endTime;
     unsigned int numTimeSteps;
     unsigned int numVertices;
     unsigned int numGrids;
@@ -257,7 +290,10 @@ namespace embree
 
     ISPCGeometry geom;
     ISPCGeometry* child;
+    float startTime;
+    float endTime;
     unsigned int numTimeSteps;
+    bool quaternion;
     AffineSpace3fa* spaces;
   };
 

@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -23,14 +23,31 @@
 // good reference is "Total Compendium" by Philip Dutre http://people.cs.kuleuven.be/~philip.dutre/GI/
 
 #include "../math/vec.h"
+#include "../math/linearspace.h"
 
 namespace embree {
 
+struct Sample3f
+{
+  Vec3fa v;
+  float pdf;
+};
+
+inline Sample3f make_Sample3f(const Vec3fa& v, const float pdf) {
+  Sample3f s; s.v = v; s.pdf = pdf; return s;
+}
+
+#if defined(ISPC)
+inline Sample3f make_Sample3f(const Vec3fa& v, const float pdf) {
+  Sample3f s; s.v = v; s.pdf = pdf; return s;
+}
+#endif
 
 inline Vec3fa cartesian(const float phi, const float sinTheta, const float cosTheta)
 {
-  float sinPhi, cosPhi;
-  sincosf(phi, &sinPhi, &cosPhi);
+  const float sinPhi = sinf(phi);
+  const float cosPhi = cosf(phi);
+  //sincosf(phi, &sinPhi, &cosPhi);
   return Vec3fa(cosPhi * sinTheta,
                     sinPhi * sinTheta,
                     cosTheta);
@@ -63,6 +80,15 @@ inline float cosineSampleHemispherePDF(float cosTheta)
   return cosTheta / float(pi);
 }
 
+/*! Cosine weighted hemisphere sampling. Up direction is provided as argument. */
+inline Sample3f cosineSampleHemisphere(const float  u, const float  v, const Vec3fa& N)
+{
+  Vec3fa localDir = cosineSampleHemisphere(Vec2f(u,v));
+  Sample3f s;
+  s.v = frame(N) * localDir;
+  s.pdf = cosineSampleHemispherePDF(localDir);
+  return s;
+}
 
 /// power cosine-weighted sampling of hemisphere oriented along the +z-axis
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,8 +138,9 @@ inline Vec3fa uniformSampleDisk(const float radius, const Vec2f &s)
 {
   const float r = sqrtf(s.x) * radius;
   const float phi =float(two_pi) * s.y;
-  float sinPhi, cosPhi;
-  sincosf(phi, &sinPhi, &cosPhi);
+  const float sinPhi = sinf(phi);
+  const float cosPhi = cosf(phi);
+  //sincosf(phi, &sinPhi, &cosPhi);
   return Vec3fa(r * cosPhi, r * sinPhi, 0.f);
 }
 

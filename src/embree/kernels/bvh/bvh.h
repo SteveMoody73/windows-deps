@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -318,12 +318,12 @@ namespace embree
       __forceinline int isQuantizedNode() const { return (ptr & (size_t)align_mask) == tyQuantizedNode; }
 
       /*! returns base node pointer */
-      __forceinline BaseNode* baseNode(int types)
+      __forceinline BaseNode* baseNode()
       {
         assert(!isLeaf());
         return (BaseNode*)(ptr & ~(size_t)align_mask);
       }
-      __forceinline const BaseNode* baseNode(int types) const
+      __forceinline const BaseNode* baseNode() const
       {
         assert(!isLeaf());
         return (const BaseNode*)(ptr & ~(size_t)align_mask);
@@ -654,24 +654,19 @@ namespace embree
       }
 
       /*! Sets bounding box of child. */
-      __forceinline void setBounds(size_t i, const BBox3fa& bounds) {
-        lower_x[i] = bounds.lower.x; lower_y[i] = bounds.lower.y; lower_z[i] = bounds.lower.z;
-        upper_x[i] = bounds.upper.x; upper_y[i] = bounds.upper.y; upper_z[i] = bounds.upper.z;
-      }
-
-      /*! Sets bounding box of child. */
       __forceinline void setBounds(size_t i, const BBox3fa& bounds0_i, const BBox3fa& bounds1_i)
       {
         /*! for empty bounds we have to avoid inf-inf=nan */
-        const BBox3fa bounds0(min(bounds0_i.lower,Vec3fa(+FLT_MAX)),max(bounds0_i.upper,Vec3fa(-FLT_MAX)));
-        const BBox3fa bounds1(min(bounds1_i.lower,Vec3fa(+FLT_MAX)),max(bounds1_i.upper,Vec3fa(-FLT_MAX)));
-
+        BBox3fa bounds0(min(bounds0_i.lower,Vec3fa(+FLT_MAX)),max(bounds0_i.upper,Vec3fa(-FLT_MAX)));
+        BBox3fa bounds1(min(bounds1_i.lower,Vec3fa(+FLT_MAX)),max(bounds1_i.upper,Vec3fa(-FLT_MAX)));
+        bounds0 = bounds0.enlarge_by(4.0f*float(ulp));
+        bounds1 = bounds1.enlarge_by(4.0f*float(ulp));
+        Vec3fa dlower = bounds1.lower-bounds0.lower;
+        Vec3fa dupper = bounds1.upper-bounds0.upper;
+        
         lower_x[i] = bounds0.lower.x; lower_y[i] = bounds0.lower.y; lower_z[i] = bounds0.lower.z;
         upper_x[i] = bounds0.upper.x; upper_y[i] = bounds0.upper.y; upper_z[i] = bounds0.upper.z;
 
-        /*! standard case */
-        const Vec3fa dlower = bounds1.lower-bounds0.lower;
-        const Vec3fa dupper = bounds1.upper-bounds0.upper;
         lower_dx[i] = dlower.x; lower_dy[i] = dlower.y; lower_dz[i] = dlower.z;
         upper_dx[i] = dupper.x; upper_dy[i] = dupper.y; upper_dz[i] = dupper.z;
       }
@@ -869,15 +864,16 @@ namespace embree
       __forceinline void setBounds(size_t i, const BBox3fa& bounds0_i, const BBox3fa& bounds1_i)
       {
         /*! for empty bounds we have to avoid inf-inf=nan */
-        const BBox3fa bounds0(min(bounds0_i.lower,Vec3fa(+FLT_MAX)),max(bounds0_i.upper,Vec3fa(-FLT_MAX)));
-        const BBox3fa bounds1(min(bounds1_i.lower,Vec3fa(+FLT_MAX)),max(bounds1_i.upper,Vec3fa(-FLT_MAX)));
-
+        BBox3fa bounds0(min(bounds0_i.lower,Vec3fa(+FLT_MAX)),max(bounds0_i.upper,Vec3fa(-FLT_MAX)));
+        BBox3fa bounds1(min(bounds1_i.lower,Vec3fa(+FLT_MAX)),max(bounds1_i.upper,Vec3fa(-FLT_MAX)));
+        bounds0 = bounds0.enlarge_by(4.0f*float(ulp));
+        bounds1 = bounds1.enlarge_by(4.0f*float(ulp));
+        Vec3fa dlower = bounds1.lower-bounds0.lower;
+        Vec3fa dupper = bounds1.upper-bounds0.upper;
+        
         lower_x[i] = bounds0.lower.x; lower_y[i] = bounds0.lower.y; lower_z[i] = bounds0.lower.z;
         upper_x[i] = bounds0.upper.x; upper_y[i] = bounds0.upper.y; upper_z[i] = bounds0.upper.z;
 
-        /*! standard case */
-        const Vec3fa dlower = bounds1.lower-bounds0.lower;
-        const Vec3fa dupper = bounds1.upper-bounds0.upper;
         lower_dx[i] = dlower.x; lower_dy[i] = dlower.y; lower_dz[i] = dlower.z;
         upper_dx[i] = dupper.x; upper_dy[i] = dupper.y; upper_dz[i] = dupper.z;
       }
@@ -1158,7 +1154,7 @@ namespace embree
         float decode_scale = diff / float(MAX_QUAN);
         if (decode_scale == 0.0f) decode_scale = 2.0f*FLT_MIN; // result may have been flushed to zero
         assert(madd(decode_scale,float(MAX_QUAN),minF) >= maxF);
-        const float encode_scale = float(MAX_QUAN) / diff;
+        const float encode_scale = diff > 0 ? (float(MAX_QUAN) / diff) : 0.0f;
         vint<N> ilower = max(vint<N>(floor((lower - vfloat<N>(minF))*vfloat<N>(encode_scale))),MIN_QUAN);
         vint<N> iupper = min(vint<N>(ceil ((upper - vfloat<N>(minF))*vfloat<N>(encode_scale))),MAX_QUAN);
 

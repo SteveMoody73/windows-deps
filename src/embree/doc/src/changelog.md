@@ -1,6 +1,135 @@
 Version History
 ---------------
 
+### Embree 3.8.0
+
+#### New Features:
+-   Added collision detection support for user geometries (see rtcCollide API function)
+-   Passing geomID to user geometry callbacks.
+
+#### Fixed Issues:
+-   Bugfix in AVX512VL codepath for rtcIntersect1
+-   For sphere geometries the intersection filter gets now invoked for
+    front and back hit.
+-   Fixed some bugs for quaternion motion blur.
+-   RTCIntersectContext always non-const in Embree API
+-   Made RTCHit aligned to 16 bytes in Embree API
+
+### New Features in Embree 3.7.0
+-   Added quaternion motion blur for correct interpolation of rotational transformations.
+-   Fixed wrong bounding calculations when a motion blurred instance did
+    instantiate a motion blurred scene.
+-   In robust mode the depth test consistently uses tnear <= t <= tfar now in order
+    to robustly continue traversal at a previous hit point
+    in a way that guarentees reaching all hits, even hits at the same place.
+-   Fixed depth test in robust mode to be precise at tnear and tfar.
+-   Added next_hit tutorial to demonstrate robustly collecting all hits
+    along a ray using multiple ray queries.
+-   Implemented robust mode for curves. This has a small performance impact but
+    fixes bounding problems with flat curves.
+-   Improved quality of motion blur BVH by using linear bounds during binning.
+-   Implemented issue with motion blur builder where number of time segments
+    for SAH heuristic were counted wrong due to some numerical issues.
+-   Fixed an accuracy issue with rendering very short fat curves.
+-   rtcCommitScene can now get called during rendering from multiple threads
+    to lazily build geometry. When TBB is used this causes a much lower overhead
+    than using rtcJoinCommitScene.
+-   Geometries can now get attached to multiple scenes at the same time, which
+    simplifies mapping general scene graphs to API.
+-   Updated to TBB 2019.9 for release builds.
+-   Fixed a bug in the BVH builder for Grid geometries.
+-   Added macOS Catalina support to Embree releases.
+
+### New Features in Embree 3.6.1
+-   Restored binary compatibility between Embree 3.6 and 3.5 when single-level instancing is used.
+-   Fixed bug in subgrid intersector
+-   Removed point query alignment in ISPC header
+
+### New Features in Embree 3.6
+-   Added Catmull-Rom curve types.
+-   Added support for multi-level instancing.
+-   Added support for point queries.
+-   Fixed a bug preventing normal oriented curves being used unless timesteps were
+    specified.
+-   Fixed bug in external BVH builder when configured for dynamic build.
+-   Added support for new config flag "user_threads=N" to device initialization
+    which sets the number of threads used by TBB but created by the user.
+-   Fixed automatic vertex buffer padding when using rtcSetNewGeometry API function.
+
+### New Features in Embree 3.5.2
+-   Added EMBREE_API_NAMESPACE cmake option that allows to put all Embree API functions
+    inside a user defined namespace.
+-   Added EMBREE_LIBRARY_NAME cmake option that allows to rename the Embree library.
+-   When Embree is compiled as static library, EMBREE_STATIC_LIB has no longer to get
+    defined before including the Embree API headers.
+-   Added CPU frequency_level device configuration to allow an application to specify the
+    frequency level it wants to run on. This forces Embree to not use optimizations that
+    may reduce the CPU frequency below that level. By default Embree is configured to the
+    the AVX-heavy frequency level, thus if the application uses solely non-AVX code, configuring
+    the Embree device with "frequency_level=simd128" may give better performance.
+-   Fixed a bug in the spatial split builder which caused it to fail
+    for scenes with more than 2^24 geometries.
+
+### New Features in Embree 3.5.1
+-   Fixed ray/sphere intersector to work also for non-normalized rays.
+-   Fixed self intersection avoidance for ray oriented discs when
+    non-normalized rays were used.
+-   Increased maximal face valence for subdiv patch to 64 and reduced stack size
+    requirement for subdiv patch evaluation.
+
+### New Features in Embree 3.5.0
+-   Changed normal oriented curve definition to fix waving artefacts.
+-   Fixed bounding issue for normal oriented motion blurred curves.
+-   Fixed performance issue with motion blurred point geometry.
+-   Fixed generation of documentation with new pandoc versions.
+
+### New Features in Embree 3.4.0
+-   Added point primitives (spheres, ray-oriented discs, normal-oriented discs).
+-   Fixed crash triggered by scenes with only invalid primitives.
+-   Improved robustness of quad/grid-based intersectors.
+-   Upgraded to TBB 2019.2 for release builds.
+
+### New Features in Embree 3.3.0
+-   Added support for motion blur time range per geometry. This way geometries
+    can appear and disappear during the camera shutter and time steps do not have
+    to start and end at camera shutter interval boundaries.
+-   Fixed crash with pathtracer when using --triangle-sphere command line.
+-   Fixed crash with pathtracer when using --shader ao command line.
+-   Fixed tutorials showing a black window on macOS 10.14 until moved.
+
+### New Features in Embree 3.2.4
+-   Fixed compile issues with ICC 2019.
+-   Released ZIP files for Windows are now provided in a
+    version linked against Visual Studio 2013 and Visual Studio 2015.
+
+### New Features in Embree 3.2.3
+-   Fixed crash when using curves with RTC_SCENE_FLAG_DYNAMIC
+    combined with RTC_BUILD_QUALITY_MEDIUM.
+
+### New Features in Embree 3.2.2
+-   Fixed intersection distance for unnormalized rays with line segments.
+-   Removed libmmd.dll dependency in release builds for Windows.
+-   Fixed detection of AppleClang compiler under MacOSX.
+
+### New Features in Embree 3.2.1
+-   Bugfix in flat mode for hermite curves.
+-   Added EMBREE_CURVE_SELF_INTERSECTION_AVOIDANCE_FACTOR cmake option to
+    control self intersection avoidance for flat curves.
+-   Performance fix when instantiating motion blurred scenes. The application
+    should best use two (or more) time steps for an instance that instantiates
+    a motion blurred scene.
+-   Fixed AVX512 compile issue with GCC 6.1.1.
+-   Fixed performance issue with rtcGetGeometryUserData when used
+    during rendering.
+-   Bugfix in length of derivatives for grid geometry.
+-   Added BVH8 support for motion blurred curves and lines. For some workloads
+    this increases performance by up to 7%.
+-   Fixed rtcGetGeometryTransform to return the local to world transform.
+-   Fixed bug in multi segment motion blur that caused missing of perfectly
+    axis aligned geometry.
+-   Reduced memory consumption of small scenes by 4x.
+-   Reduced temporal storage of grid builder.
+
 ### New Features in Embree 3.2.0
 -   Improved watertightness of robust mode.
 -   Line segments, and other curves are now all contained in a single
@@ -67,6 +196,27 @@ Version History
 -   Individual Contributor License Agreement (ICLA) and Corporate
     Contributor License Agreement (CCLA) no longer required to
     contribute to the project.
+
+### New Features in Embree 2.17.5
+-   Improved watertightness of robust mode.
+-   Fixed floating point exception in static variable initialization.
+-   Fixed AVX512 compile issue with GCC 6.1.1.
+
+### New Features in Embree 2.17.4
+-   Fixed AVX512 compile issue with GCC 7.
+-   Fixed issue with not thread safe local static variable
+    initialization in VS2013.
+-   Fixed bug in the 4 and 8-wide packet intersection of instances with
+    multi-segment motion blur on AVX-512 architectures.
+-   Fixed bug in rtcOccluded4/8/16 when only AVX-512 ISA was enabled.
+
+### New Features in Embree 2.17.3
+-   Fixed GCC compile warning in debug mode.
+-   Fixed bug of ribbon curve intersector when derivative was zero.
+-   Installing all static libraries when EMBREE_STATIC_LIB is enabled.
+
+### New Features in Embree 2.17.2
+-   Made BVH build of curve geometry deterministic.
 
 ### New Features in Embree 2.17.1
 -   Improved performance of occlusion ray packets by up to 50%.

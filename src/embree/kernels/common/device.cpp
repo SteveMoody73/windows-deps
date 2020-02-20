@@ -1,5 +1,5 @@
 // ======================================================================== //
-// Copyright 2009-2018 Intel Corporation                                    //
+// Copyright 2009-2020 Intel Corporation                                    //
 //                                                                          //
 // Licensed under the Apache License, Version 2.0 (the "License");          //
 // you may not use this file except in compliance with the License.         //
@@ -336,7 +336,9 @@ namespace embree
     size_t maxNumThreads = getMaxNumThreads();
     TaskScheduler::create(maxNumThreads,State::set_affinity,State::start_threads);
 #if USE_TASK_ARENA
-    arena = make_unique(new tbb::task_arena((int)min(maxNumThreads,TaskScheduler::threadCount())));
+    const size_t nThreads = min(maxNumThreads,TaskScheduler::threadCount());
+    const size_t uThreads = min(max(numUserThreads,(size_t)1),nThreads);
+    arena = make_unique(new tbb::task_arena((int)nThreads,(unsigned int)uThreads));
 #endif
   }
 
@@ -491,12 +493,24 @@ namespace embree
     case RTC_DEVICE_PROPERTY_USER_GEOMETRY_SUPPORTED: return 0;
 #endif
 
+#if defined(EMBREE_GEOMETRY_POINT)
+    case RTC_DEVICE_PROPERTY_POINT_GEOMETRY_SUPPORTED: return 1;
+#else
+    case RTC_DEVICE_PROPERTY_POINT_GEOMETRY_SUPPORTED: return 0;
+#endif
+
 #if defined(TASKING_PPL)
     case RTC_DEVICE_PROPERTY_JOIN_COMMIT_SUPPORTED: return 0;
 #elif defined(TASKING_TBB) && (TBB_INTERFACE_VERSION_MAJOR < 8)
     case RTC_DEVICE_PROPERTY_JOIN_COMMIT_SUPPORTED: return 0;
 #else
     case RTC_DEVICE_PROPERTY_JOIN_COMMIT_SUPPORTED: return 1;
+#endif
+
+#if defined(TASKING_TBB) && TASKING_TBB_USE_TASK_ISOLATION
+    case RTC_DEVICE_PROPERTY_PARALLEL_COMMIT_SUPPORTED: return 1;
+#else
+    case RTC_DEVICE_PROPERTY_PARALLEL_COMMIT_SUPPORTED: return 0;
 #endif
 
     default: throw_RTCError(RTC_ERROR_INVALID_ARGUMENT, "unknown readable property"); break;

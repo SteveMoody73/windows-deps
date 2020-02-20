@@ -215,6 +215,8 @@ else ()
                           SOVERSION ${SOVERSION} )
 endif ()
 
+message(STATUS "OPENIMAGEIO Libs: ${OPENIMAGEIO_LIBRARIES}")
+
 TARGET_LINK_LIBRARIES ( oslexec
                         ${VISIBILITY_COMMAND} ${VISIBILITY_MAP_COMMAND}
                         ${OPENIMAGEIO_LIBRARIES} ${ILMBASE_LIBRARIES}
