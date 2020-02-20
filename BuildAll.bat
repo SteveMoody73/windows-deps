@@ -562,7 +562,7 @@ echo %time% ^| [16/19] Building Blosc...
     mkdir %root%build\%platform%\blosc-release 2>nul
     pushd %root%build\%platform%\blosc-release
         echo === Blosc (Release) ================================================ > BUILDLOG.txt
-        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DBUILD_STATIC=ON -DBUILD_SHARED=OFF -DBUILD_TESTS=OFF -DBUILD_BENCHMARKS=OFF -DPREFER_EXTERNAL_ZLIB=ON -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstaticd.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\blosc-release %src%\blosc %redirect%
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DBUILD_STATIC=ON -DBUILD_SHARED=OFF -DBUILD_TESTS=OFF -DBUILD_BENCHMARKS=OFF -DPREFER_EXTERNAL_ZLIB=ON -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\blosc-release %src%\blosc %redirect%
         %devenv% blosc.sln /build Release /project INSTALL %redirect%
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
@@ -631,7 +631,7 @@ echo %time% ^| [19/19] Building AssImp...
         echo === AssImp (Debug) ================================================== > BUILDLOG.txt
         cmake -G %generator% -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=OFF -DASSIMP_BUILD_TESTS=OFF -DIGNORE_GIT_HASH=ON -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-debug\lib\zlibstaticd.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\assimp-debug %src%\assimp %redirect%
         %devenv% assimp.sln /build Debug /project INSTALL %redirect%
-        copy code\assimp.dir\Debug\*.pdb %root%stage\%platform%\assimp-debug\lib %redirect%
+        copy code\Debug\*.pdb %root%stage\%platform%\assimp-debug\lib %redirect%
         copy contrib\irrXML\IrrXML.dir\Debug\*.pdb %root%stage\%platform%\assimp-debug\lib %redirect%
 		type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
