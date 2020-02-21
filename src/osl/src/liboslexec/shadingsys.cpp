@@ -2323,7 +2323,7 @@ ShadingSystemImpl::ShaderGroupBegin (string_view groupname,
             }
         }
         string_view paramname (paramname_string);
-        int lockgeom = true;
+        int lockgeom = m_lockgeom_default;
         // For speed, reserve space. Note that for "unsized" arrays, we only
         // preallocate 1 slot and let it grow as needed. That's ok. For
         // everything else, we will reserve the right amount up front.
@@ -2512,8 +2512,13 @@ ShadingSystemImpl::ReParameter (ShaderGroup &group, string_view layername_,
     int paramindex = layer->findparam (ustring(paramname));
     if (paramindex < 0)
         return false;   // could not find the named parameter
+
     Symbol *sym = layer->symbol (paramindex);
-    ASSERT (sym != NULL);
+    if (!sym) {
+        // Can have a paramindex >= 0, but no symbol when it's a master-symbol
+        DASSERT(layer->mastersymbol(paramindex) && "No symbol for paramindex");
+        return false;
+    }
 
     // Check for mismatch versus previously-declared type
     if (!equivalent(sym->typespec(), type))
@@ -2990,8 +2995,8 @@ ShadingSystemImpl::merge_instances (ShaderGroup &group, bool post_opt)
 
     // Loop over all layers...
     for (int a = 0;  a < nlayers-1;  ++a) {
-        if (group[a]->unused())    // Don't merge a layer that's not used
-            continue;
+        if (group[a]->unused() || group[a]->entry_layer()) // Don't merge a layer that's not used
+            continue;                                      // or if it's an entry layer
         // Check all later layers...
         for (int b = a+1;  b < nlayers;  ++b) {
             if (group[b]->unused())    // Don't merge a layer that's not used

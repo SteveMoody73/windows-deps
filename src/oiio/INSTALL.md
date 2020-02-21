@@ -26,11 +26,11 @@ NEW or CHANGED MINIMUM dependencies since the last major release are **bold**.
 ### Required dependencies -- OIIO will not build at all without these
 
  * C++11 (also builds with C++14 and C++17)
- * Compilers: gcc 4.8.2 - 8.2, clang 3.3 - 8.0, **MSVS 2015 - 2019**,
+ * Compilers: gcc 4.8.2 - 9.1, clang 3.3 - 9.0, **MSVS 2015 - 2019**,
    icc version 13 or higher
- * Boost >= 1.53 (tested up through 1.70)
- * CMake >= 3.2.2 (tested up through 3.14)
- * OpenEXR >= 2.0 (recommended: 2.2 or 2.3)
+ * Boost >= 1.53 (tested up through 1.71)
+ * **CMake >= 3.12** (tested up through 3.15)
+ * OpenEXR >= 2.0 (recommended: 2.2 or higher; tested through 2.4)
  * libTIFF >= 3.9 (recommended: 4.0+)
 
 ### Optional dependencies -- features may be disabled if not found
@@ -40,15 +40,17 @@ NEW or CHANGED MINIMUM dependencies since the last major release are **bold**.
      * OpenGL
  * If you are building the Python bindings or running the testsuite:
      * Python >= 2.7 (tested against 2.7, 3.6, 3.7)
-     * **NumPy**
-     * **pybind11 >= 2.2.0** (but OIIO will auto-download it if not found)
+     * NumPy
+     * **pybind11 >= 2.4.2** (Tested through 2.4.2. For this
+       case, or if no pybind11 is found already on the system, OIIO will
+       auto-download it.)
  * If you want support for camera "RAW" formats:
      * libRaw >= 0.15 (tested 0.15 - 0.19; libRaw >= 0.18 is necessary for
        ACES support and much better recognition of camera metadata)
  * If you want support for a wide variety of video formats:
      * ffmpeg >= 2.6 (tested through 4.1)
  * If you want support for jpeg 2000 images:
-     * OpenJpeg >= 1.5 (tested through 2.3; version 1.5 is strongly discouraged)
+     * OpenJpeg >= 1.5 (tested through 2.3; version 2.0+ is strongly recommended)
  * If you want support for Field3D files:
      * Field3D
  * If you want support for OpenVDB files:
@@ -56,6 +58,57 @@ NEW or CHANGED MINIMUM dependencies since the last major release are **bold**.
  * If you want support for converting to and from OpenCV data structures,
    or for capturing images from a camera:
      * OpenCV 2.x, 3.x, or 4.x
+ * If you want support for GIF images:
+     * giflib >= 4.1 (5.0+ is strongly recommended for stability and
+       thread safety)
+ * If you want support for HEIF/HEIC images:
+     * libheic >= 1.3 (tested through 1.5; older versions may also work, we
+       haven't tested)
+* If you want support for DDS files:
+     * libsquish >= 1.13
+     * But... if not found on the system, an embedded version will be used.
+
+
+Dependency control and disabling components
+-------------------------------------------
+
+**Hints for finding dependencies**
+
+For each external dependency PkgName, our CMake build system will recognize
+the following optional variable:
+
+    PkgName_ROOT=...
+
+to specify a hint about where the package is installed. It can either be
+a CMake variable (set by `-DPkgName_ROOT=...` on the CMake command line),
+or an environment variable of the same name, or a variable setting on the
+Make wrapper (`make PkgName_ROOT=...`).
+
+**Disabling optional dependencies and individual components**
+
+`USE_PYTHON=0` : Omits building the Python bindings.
+
+`OIIO_BUILD_TESTS=0` : Omits building tests (you probably don't need them
+unless you are a developer of OIIO or want to verify that your build
+passes all tests).
+
+`OIIO_BUILD_TOOLS=0` : Disables building all the command line tools (such
+as iinfo, oiiotool, maketx, etc.).
+
+`ENABLE_toolname=0` : Disables building the named command line tool (iinfo,
+oiiotool, etc.). This works both as a CMake variable and also as an
+environment variable.
+
+`ENABLE_formatname=0` : Disables building support for the particular named
+file format (jpeg, fits, png, etc.). This works both as a CMake variable and
+also as an environment variable.
+
+`ENABLE_PkgName=0` : Disables use of an *optional* dependency (such as
+FFmpeg, Field3D, Webp, etc.) -- even if the dependency is found on the
+system. This will obviously disable any functionality that requires the
+dependency. This works both as a CMake variable and
+also as an environment variable.
+
 
 
 Building OpenImageIO on Linux or OS X
@@ -106,7 +159,6 @@ Make targets you should know about:
 |  make realclean   |  Get rid of both build/PLATFORM and dist/PLATFORM     |
 |  make nuke        |  Get rid of all build/ and dist/, for all platforms   |
 |  make profile     |  Build a profilable version dist/PLATFORM.profile     |
-|  make doxygen     |  Build the Doxygen docs                               |
 |  make help        |  Print all the make options                           |
 
 Additionally, a few helpful modifiers alter some build-time options:
@@ -120,7 +172,7 @@ Additionally, a few helpful modifiers alter some build-time options:
 | make USE_QT=0 ...         |  Skip anything that needs Qt                   |
 | make MYCC=xx MYCXX=yy ... |  Use custom compilers                          |
 | make USE_PYTHON=0 ...     |  Don't build the Python binding                |
-| make BUILDSTATIC=1 ...    |  Build static library instead of shared        |
+| make BUILD_SHARED_LIBS=0  |  Build static library instead of shared        |
 | make LINKSTATIC=1 ...     |  Link with static external libraries when possible |
 | make SOVERSION=nn ...     |  Include the specifed major version number in the shared object metadata |
 | make NAMESPACE=name       |   Wrap everything in another namespace         |

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
+from __future__ import absolute_import
 import array
 import numpy
 import OpenImageIO as oiio
@@ -132,6 +133,12 @@ try:
                   numpy.array([6554,32767,58982, 13107,32767,45874,
                                    19660,32767,52428, 26214,32767,39321], dtype='H'))
     write (b, "outarrayH.tif", oiio.UINT16)
+
+    # Test writing per-channel formats with an ImageBuf
+    b = oiio.ImageBuf(oiio.ImageSpec(2,2,4,"float"))
+    oiio.ImageBufAlgo.fill(b, (0.1, 0.2, 0.3, 0.4))
+    b.set_write_format (("half", "half", "half", "float"))
+    b.write ("perchan.exr")
 
     # Test write and read of deep data
     # Let's try writing one

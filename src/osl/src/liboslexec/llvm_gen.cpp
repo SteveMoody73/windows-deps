@@ -2319,7 +2319,7 @@ llvm_gen_texture_options (BackendLLVM &rop, int opnum,
                 // function that points the TextureOpt.missingcolor to it.
                 missingcolor = rop.ll.op_alloca(rop.ll.type_float(), 4);
                 rop.ll.call_function ("osl_texture_set_missingcolor_arena",
-                                      opt, missingcolor);
+                                      opt, rop.ll.void_ptr(missingcolor));
             }
             llvm::Value *val = rop.llvm_load_value (Val);
             rop.ll.call_function ("osl_texture_set_missingcolor_alpha",
@@ -3326,7 +3326,7 @@ LLVMGEN (llvm_gen_closure)
     for (int carg = 0; carg < clentry->nformal; ++carg) {
         const ClosureParam &p = clentry->params[carg];
         if (p.key != NULL) break;
-        //DASSERT(p.offset + p.field_size <= clentry->struct_size);
+        DASSERT(p.offset + p.field_size <= clentry->struct_size);
         Symbol &sym = *rop.opargsym (op, carg + 2 + weighted);
         TypeDesc t = sym.typespec().simpletype();
 

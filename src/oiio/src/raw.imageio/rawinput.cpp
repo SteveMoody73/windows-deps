@@ -1,32 +1,6 @@
-/*
-  Copyright 2013 Larry Gritz and the other authors and contributors.
-  All Rights Reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-  * Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-  * Neither the name of the software's owners nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-  (This is the Modified BSD License)
-*/
+// Copyright 2008-present Contributors to the OpenImageIO project.
+// SPDX-License-Identifier: BSD-3-Clause
+// https://github.com/OpenImageIO/oiio/blob/master/LICENSE.md
 
 #include <algorithm>
 #include <ctime> /* time_t, struct tm, gmtime */
@@ -40,8 +14,8 @@
 #include <OpenImageIO/sysutil.h>
 #include <OpenImageIO/tiffutils.h>
 
-#if OIIO_GNUC_VERSION >= 80000 || OIIO_CLANG_VERSION >= 50000
-// fix gcc8 warnings in libraw headers: use of auto_ptr
+#if OIIO_GNUC_VERSION || OIIO_CLANG_VERSION >= 50000
+// fix warnings in libraw headers: use of auto_ptr
 #    pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
@@ -368,7 +342,6 @@ RawInput::open_raw(bool unpack, const std::string& name,
                    const ImageSpec& config)
 {
     // std::cout << "open_raw " << name << " unpack=" << unpack << "\n";
-    ASSERT(!m_processor);
     m_processor.reset(new LibRaw);
 
     // Temp spec for exif parser callback to dump into
@@ -380,24 +353,29 @@ RawInput::open_raw(bool unpack, const std::string& name,
 
     int ret;
     if ((ret = m_processor->open_file(name.c_str())) != LIBRAW_SUCCESS) {
-        error("Could not open file \"%s\", %s", m_filename,
-              libraw_strerror(ret));
+        errorf("Could not open file \"%s\", %s", m_filename,
+               libraw_strerror(ret));
         return false;
     }
 
-    ASSERT(!m_unpacked);
+    OIIO_ASSERT(!m_unpacked);
     if (unpack) {
         if ((ret = m_processor->unpack()) != LIBRAW_SUCCESS) {
-            error("Could not unpack \"%s\", %s", m_filename,
-                  libraw_strerror(ret));
+            errorf("Could not unpack \"%s\", %s", m_filename,
+                   libraw_strerror(ret));
             return false;
         }
     }
     m_processor->adjust_sizes_info_only();
 
+    // Process image at half size if "raw:half_size" is not 0
+    m_processor->imgdata.params.half_size
+        = config.get_int_attribute("raw:half_size", 0);
+    int div = m_processor->imgdata.params.half_size == 0 ? 1 : 2;
+
     // Set file information
-    m_spec = ImageSpec(m_processor->imgdata.sizes.iwidth,
-                       m_processor->imgdata.sizes.iheight,
+    m_spec = ImageSpec(m_processor->imgdata.sizes.iwidth / div,
+                       m_processor->imgdata.sizes.iheight / div,
                        3,  // LibRaw should only give us 3 channels
                        TypeDesc::UINT16);
     // Move the exif attribs we already read into the spec we care about
@@ -405,10 +383,6 @@ RawInput::open_raw(bool unpack, const std::string& name,
 
     // Output 16 bit images
     m_processor->imgdata.params.output_bps = 16;
-
-    // Set the gamma curve to Linear
-    m_processor->imgdata.params.gamm[0] = 1.0;
-    m_processor->imgdata.params.gamm[1] = 1.0;
 
     // Disable exposure correction (unless config "raw:auto_bright" == 1)
     m_processor->imgdata.params.no_auto_bright
@@ -433,6 +407,24 @@ RawInput::open_raw(bool unpack, const std::string& name,
             m_processor->imgdata.params.aber[2] = p->get<double>(1);
         }
     }
+    // Set user white balance coefficients.
+    // Only has effect if "raw:use_camera_wb" is equal to 0,
+    // i.e. we are not using the camera white balance
+    {
+        auto p = config.find_attribute("raw:user_mul");
+        if (p && p->type() == TypeDesc(TypeDesc::FLOAT, 4)) {
+            m_processor->imgdata.params.user_mul[0] = p->get<float>(0);
+            m_processor->imgdata.params.user_mul[1] = p->get<float>(1);
+            m_processor->imgdata.params.user_mul[2] = p->get<float>(2);
+            m_processor->imgdata.params.user_mul[3] = p->get<float>(3);
+        }
+        if (p && p->type() == TypeDesc(TypeDesc::DOUBLE, 4)) {
+            m_processor->imgdata.params.user_mul[0] = p->get<double>(0);
+            m_processor->imgdata.params.user_mul[1] = p->get<double>(1);
+            m_processor->imgdata.params.user_mul[2] = p->get<double>(2);
+            m_processor->imgdata.params.user_mul[3] = p->get<double>(3);
+        }
+    }
 
     // Use embedded color profile. Values mean:
     // 0: do not use embedded color profile
@@ -443,53 +435,72 @@ RawInput::open_raw(bool unpack, const std::string& name,
     m_processor->imgdata.params.use_camera_matrix
         = config.get_int_attribute("raw:use_camera_matrix", 1);
 
-
-    // Check to see if the user has explicitly set the output colorspace primaries.
-    // The default is to ask it to convert to sRGB space.
+    // Check to see if the user has explicitly requested output colorspace
+    // primaries via a configuration hinnt "raw:ColorSpace". The default if
+    // there is no such hint is convert to sRGB, so that if somebody just
+    // naively reads a raw image and slaps it into a framebuffer for
+    // display, it will work just like a jpeg. More sophisticated users
+    // might request a particular color space, like "ACES". Note that a
+    // request for "linear" will give you sRGB primaries with a linear
+    // response.
     std::string cs = config.get_string_attribute("raw:ColorSpace", "sRGB");
-    if (cs.size()) {
-        static const char* colorspaces[]
-            = { "raw",
-                "sRGB",
-                "Adobe",
-                "Wide",
-                "ProPhoto",
-                "XYZ",
-#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 18, 0)
-                "ACES",
-#endif
-                NULL };
-
-        size_t c;
-        for (c = 0; colorspaces[c]; c++)
-            if (Strutil::iequals(cs, colorspaces[c]))
-                break;
-        if (colorspaces[c])
-            m_processor->imgdata.params.output_color = c;
-        else {
-#if LIBRAW_VERSION < LIBRAW_MAKE_VERSION(0, 18, 0)
-            if (cs == "ACES")
-                error(
-                    "raw:ColorSpace value of \"ACES\" is not supported by libRaw %d.%d.%d",
-                    LIBRAW_MAJOR_VERSION, LIBRAW_MINOR_VERSION,
-                    LIBRAW_PATCH_VERSION);
-            else
-#endif
-                error("raw:ColorSpace set to unknown value");
-            return false;
-        }
-        m_spec.attribute("oiio:ColorSpace", cs);
-    } else {
-        // By default we use sRGB primaries for simplicity
+    if (Strutil::iequals(cs, "raw")) {
+        // Values straight from the chip
+        m_processor->imgdata.params.output_color = 0;
+        m_processor->imgdata.params.gamm[0]      = 1.0;
+        m_processor->imgdata.params.gamm[1]      = 1.0;
+    } else if (Strutil::iequals(cs, "sRGB")) {
+        // Request explicit sRGB, including usual sRGB response
         m_processor->imgdata.params.output_color = 1;
-        m_spec.attribute("oiio:ColorSpace", "sRGB");
+        m_processor->imgdata.params.gamm[0]      = 1.0 / 2.4;
+        m_processor->imgdata.params.gamm[1]      = 12.92;
+    } else if (Strutil::iequals(cs, "Adobe")) {
+        // Request Adobe color space with 2.2 gamma (no linear toe)
+        m_processor->imgdata.params.output_color = 2;
+        m_processor->imgdata.params.gamm[0]      = 1.0 / 2.2;
+        m_processor->imgdata.params.gamm[1]      = 0.0;
+    } else if (Strutil::iequals(cs, "Wide")) {
+        m_processor->imgdata.params.output_color = 3;
+        m_processor->imgdata.params.gamm[0]      = 1.0;
+        m_processor->imgdata.params.gamm[1]      = 1.0;
+    } else if (Strutil::iequals(cs, "ProPhoto")) {
+        // ProPhoto by convention has gamma 1.8
+        m_processor->imgdata.params.output_color = 4;
+        m_processor->imgdata.params.gamm[0]      = 1.8;
+        m_processor->imgdata.params.gamm[1]      = 0.0;
+    } else if (Strutil::iequals(cs, "XYZ")) {
+        // XYZ linear
+        m_processor->imgdata.params.output_color = 5;
+        m_processor->imgdata.params.gamm[0]      = 1.0;
+        m_processor->imgdata.params.gamm[1]      = 1.0;
+    } else if (Strutil::iequals(cs, "ACES")) {
+#if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 18, 0)
+        // ACES linear
+        m_processor->imgdata.params.output_color = 6;
+        m_processor->imgdata.params.gamm[0]      = 1.0;
+        m_processor->imgdata.params.gamm[1]      = 1.0;
+#else
+        errorf(
+            "raw:ColorSpace value of \"ACES\" is not supported by libRaw %d.%d.%d",
+            LIBRAW_MAJOR_VERSION, LIBRAW_MINOR_VERSION, LIBRAW_PATCH_VERSION);
+        return false;
+#endif
+    } else if (Strutil::iequals(cs, "linear")) {
+        // Request "sRGB" primaries, linear reponse
+        m_processor->imgdata.params.output_color = 1;
+        m_processor->imgdata.params.gamm[0]      = 1.0;
+        m_processor->imgdata.params.gamm[1]      = 1.0;
+    } else {
+        errorf("raw:ColorSpace set to unknown value \"%s\"", cs);
+        return false;
     }
+    m_spec.attribute("oiio:ColorSpace", cs);
 
     // Exposure adjustment
     float exposure = config.get_float_attribute("raw:Exposure", -1.0f);
     if (exposure >= 0.0f) {
         if (exposure < 0.25f || exposure > 8.0f) {
-            error("raw:Exposure invalid value. range 0.25f - 8.0f");
+            errorf("raw:Exposure invalid value. range 0.25f - 8.0f");
             return false;
         }
         m_processor->imgdata.params.exp_correc
@@ -504,7 +515,7 @@ RawInput::open_raw(bool unpack, const std::string& name,
     int highlight_mode = config.get_int_attribute("raw:HighlightMode", 0);
     if (highlight_mode != 0) {
         if (highlight_mode < 0 || highlight_mode > 9) {
-            error("raw:HighlightMode invalid value. range 0-9");
+            errorf("raw:HighlightMode invalid value. range 0-9");
             return false;
         }
         m_processor->imgdata.params.highlight = highlight_mode;
@@ -548,8 +559,8 @@ RawInput::open_raw(bool unpack, const std::string& name,
             libraw_decoder_info_t decoder_info;
             m_processor->get_decoder_info(&decoder_info);
             if (!(decoder_info.decoder_flags & LIBRAW_DECODER_FLATFIELD)) {
-                error("Unable to extract unbayered data from file \"%s\"",
-                      name.c_str());
+                errorf("Unable to extract unbayered data from file \"%s\"",
+                       name);
                 return false;
             }
 
@@ -567,7 +578,7 @@ RawInput::open_raw(bool unpack, const std::string& name,
             m_spec.erase_attribute("raw:Colorspace");
             m_spec.erase_attribute("raw:Exposure");
         } else {
-            error("raw:Demosaic set to unknown value");
+            errorf("raw:Demosaic set to unknown value");
             return false;
         }
         // Set the attribute in the output spec
@@ -611,9 +622,9 @@ RawInput::open_raw(bool unpack, const std::string& name,
     const libraw_imgother_t& other(m_processor->imgdata.other);
     m_spec.attribute("Exif:ISOSpeedRatings", (int)other.iso_speed);
     m_spec.attribute("ExposureTime", other.shutter);
-    m_spec.attribute("Exif:ShutterSpeedValue", -log2f(other.shutter));
+    m_spec.attribute("Exif:ShutterSpeedValue", -std::log2(other.shutter));
     m_spec.attribute("FNumber", other.aperture);
-    m_spec.attribute("Exif:ApertureValue", 2.0f * log2f(other.aperture));
+    m_spec.attribute("Exif:ApertureValue", 2.0f * std::log2(other.aperture));
     m_spec.attribute("Exif:FocalLength", other.focal_len);
     struct tm m_tm;
     Sysutil::get_local_time(&m_processor->imgdata.other.timestamp, &m_tm);
@@ -856,7 +867,7 @@ RawInput::get_makernotes_olympus()
     // unsigned     AFAreas[64];
     MAKERF(AFPointSelected);
     MAKERF(AFResult);
-    MAKERF(ImageStabilization);
+    // MAKERF(ImageStabilization);  Removed after 0.19
     MAKERF(ColorSpace);
 #endif
 #if LIBRAW_VERSION >= LIBRAW_MAKE_VERSION(0, 19, 0)
@@ -982,7 +993,7 @@ RawInput::get_makernotes_sony()
         MAKERF(ElectronicFrontCurtainShutter);
     MAKER(MeteringMode2, 0);
     add(m_make, "DateTime", mn.SonyDateTime);
-    MAKERF(TimeStamp);
+    // MAKERF(TimeStamp);  Removed after 0.19, is in 'other'
     MAKER(ShotNumberSincePowerUp, 0);
 #endif
 }
@@ -1119,23 +1130,23 @@ RawInput::process()
     if (!m_image) {
         int ret = m_processor->dcraw_process();
         if (ret != LIBRAW_SUCCESS) {
-            error("Processing image failed, %s", libraw_strerror(ret));
+            errorf("Processing image failed, %s", libraw_strerror(ret));
             return false;
         }
 
         m_image = m_processor->dcraw_make_mem_image(&ret);
         if (!m_image) {
-            error("LibRaw failed to create in memory image");
+            errorf("LibRaw failed to create in memory image");
             return false;
         }
 
         if (m_image->type != LIBRAW_IMAGE_BITMAP) {
-            error("LibRaw did not return expected image type");
+            errorf("LibRaw did not return expected image type");
             return false;
         }
 
         if (m_image->colors != 3) {
-            error("LibRaw did not return 3 channel image");
+            errorf("LibRaw did not return 3 channel image");
             return false;
         }
     }

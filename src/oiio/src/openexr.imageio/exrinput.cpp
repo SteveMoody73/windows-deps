@@ -1,32 +1,6 @@
-/*
-  Copyright 2008 Larry Gritz and the other authors and contributors.
-  All Rights Reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-  * Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-  * Neither the name of the software's owners nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-  (This is the Modified BSD License)
-*/
+// Copyright 2008-present Contributors to the OpenImageIO project.
+// SPDX-License-Identifier: BSD-3-Clause
+// https://github.com/OpenImageIO/oiio/blob/master/LICENSE.md
 
 #include <cerrno>
 #include <cmath>
@@ -37,13 +11,37 @@
 #include <memory>
 #include <numeric>
 
-#include <boost/math/common_factor_rt.hpp>
+#include <boost/version.hpp>
+#if BOOST_VERSION >= 106900
+#    include <boost/integer/common_factor_rt.hpp>
+using boost::integer::gcd;
+#else
+#    include <boost/math/common_factor_rt.hpp>
+using boost::math::gcd;
+#endif
 
 #include <OpenEXR/ImfChannelList.h>
 #include <OpenEXR/ImfEnvmap.h>
 #include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfTestFile.h>
 #include <OpenEXR/ImfTiledInputFile.h>
+
+#include <OpenImageIO/platform.h>
+
+#ifdef OPENEXR_VERSION_MAJOR
+#    define OPENEXR_CODED_VERSION                                              \
+        (OPENEXR_VERSION_MAJOR * 10000 + OPENEXR_VERSION_MINOR * 100           \
+         + OPENEXR_VERSION_PATCH)
+#else
+#    define OPENEXR_CODED_VERSION 20000
+#endif
+
+#if OPENEXR_CODED_VERSION >= 20400                                             \
+    || __has_include(<OpenEXR/ImfFloatVectorAttribute.h>)
+#    define OPENEXR_HAS_FLOATVECTOR 1
+#else
+#    define OPENEXR_HAS_FLOATVECTOR 0
+#endif
 
 // The way that OpenEXR uses dynamic casting for attributes requires
 // temporarily suspending "hidden" symbol visibility mode.
@@ -61,6 +59,9 @@
 #include <OpenEXR/ImfDoubleAttribute.h>
 #include <OpenEXR/ImfEnvmapAttribute.h>
 #include <OpenEXR/ImfFloatAttribute.h>
+#if OPENEXR_HAS_FLOATVECTOR
+#    include <OpenEXR/ImfFloatVectorAttribute.h>
+#endif
 #include <OpenEXR/ImfInputPart.h>
 #include <OpenEXR/ImfIntAttribute.h>
 #include <OpenEXR/ImfKeyCodeAttribute.h>
@@ -109,7 +110,7 @@ public:
     }
     virtual bool read(char c[], int n)
     {
-        ASSERT(m_io);
+        OIIO_DASSERT(m_io);
         if (m_io->read(c, n) != size_t(n))
             throw Iex::IoExc("Unexpected end of file.");
         return n;
@@ -136,8 +137,9 @@ public:
     virtual int supports(string_view feature) const override
     {
         return (feature == "arbitrary_metadata"
-                || feature == "exif"    // Because of arbitrary_metadata
-                || feature == "iptc");  // Because of arbitrary_metadata
+                || feature == "exif"  // Because of arbitrary_metadata
+                || feature == "iptc"  // Because of arbitrary_metadata
+                || feature == "ioproxy");
     }
     virtual bool valid_file(const std::string& filename) const override;
     virtual bool open(const std::string& name, ImageSpec& newspec,
@@ -419,11 +421,11 @@ OpenEXRInput::open(const std::string& name, ImageSpec& newspec,
     // Quick check to reject non-exr files. Don't perform these tests for
     // the IOProxy case.
     if (!m_io && !Filesystem::is_regular(name)) {
-        error("Could not open file \"%s\"", name);
+        errorf("Could not open file \"%s\"", name);
         return false;
     }
     if (!valid_file(name, m_io)) {
-        error("\"%s\" is not an OpenEXR file", name);
+        errorf("\"%s\" is not an OpenEXR file", name);
         return false;
     }
     pvt::set_exr_threads();
@@ -460,11 +462,11 @@ OpenEXRInput::open(const std::string& name, ImageSpec& newspec,
         m_input_stream = new OpenEXRInputStream(name.c_str(), m_io);
     } catch (const std::exception& e) {
         m_input_stream = NULL;
-        error("OpenEXR exception: %s", e.what());
+        errorf("OpenEXR exception: %s", e.what());
         return false;
     } catch (...) {  // catch-all for edge cases or compiler bugs
         m_input_stream = NULL;
-        error("OpenEXR exception: unknown");
+        errorf("OpenEXR exception: unknown");
         return false;
     }
 
@@ -473,11 +475,11 @@ OpenEXRInput::open(const std::string& name, ImageSpec& newspec,
     } catch (const std::exception& e) {
         delete m_input_stream;
         m_input_stream = NULL;
-        error("OpenEXR exception: %s", e.what());
+        errorf("OpenEXR exception: %s", e.what());
         return false;
     } catch (...) {  // catch-all for edge cases or compiler bugs
         m_input_stream = NULL;
-        error("OpenEXR exception: unknown");
+        errorf("OpenEXR exception: unknown");
         return false;
     }
 
@@ -521,7 +523,7 @@ OpenEXRInput::PartInfo::parse_header(OpenEXRInput* in,
         return ok;
 
     ImageInput::lock_guard lock(in->m_mutex);
-    ASSERT(header);
+    OIIO_DASSERT(header);
     spec = ImageSpec();
 
     top_datawindow    = header->dataWindow();
@@ -639,6 +641,9 @@ OpenEXRInput::PartInfo::parse_header(OpenEXRInput* in,
         const Imf::KeyCodeAttribute* kcattr;
         const Imf::ChromaticitiesAttribute* crattr;
         const Imf::RationalAttribute* rattr;
+#if OPENEXR_HAS_FLOATVECTOR
+        const Imf::FloatVectorAttribute* fvattr;
+#endif
         const Imf::StringVectorAttribute* svattr;
         const Imf::DoubleAttribute* dattr;
         const Imf::V2dAttribute* v2dattr;
@@ -701,6 +706,16 @@ OpenEXRInput::PartInfo::parse_header(OpenEXRInput* in,
                 ustrvec[i] = strvec[i];
             TypeDesc sv(TypeDesc::STRING, ustrvec.size());
             spec.attribute(oname, sv, &ustrvec[0]);
+#if OPENEXR_HAS_FLOATVECTOR
+
+        } else if (type == "floatvector"
+                   && (fvattr
+                       = header->findTypedAttribute<Imf::FloatVectorAttribute>(
+                           name))) {
+            std::vector<float> fvec = fvattr->value();
+            TypeDesc fv(TypeDesc::FLOAT, fvec.size());
+            spec.attribute(oname, fv, &fvec[0]);
+#endif
         } else if (type == "double"
                    && (dattr = header->findTypedAttribute<Imf::DoubleAttribute>(
                            name))) {
@@ -786,8 +801,7 @@ OpenEXRInput::PartInfo::parse_header(OpenEXRInput* in,
                 r[1] = static_cast<int>(d);
                 spec.attribute(oname, TypeRational, r);
             } else if (int f = static_cast<int>(
-                                   boost::math::gcd<long int>(rational[0],
-                                                              rational[1]))
+                                   gcd<long int>(rational[0], rational[1]))
                                > 1) {
                 int r[2];
                 r[0] = n / f;
@@ -818,6 +832,8 @@ OpenEXRInput::PartInfo::parse_header(OpenEXRInput* in,
     if (header->hasName() && header->name() != "")
         spec.attribute("oiio:subimagename", header->name());
 
+    spec.attribute("oiio:subimages", in->m_nsubimages);
+
     // Squash some problematic texture metadata if we suspect it's wrong
     pvt::check_texture_metadata_sanity(spec);
 
@@ -837,7 +853,9 @@ TypeDesc_from_ImfPixelType(Imf::PixelType ptype)
     case Imf::UINT: return TypeDesc::UINT; break;
     case Imf::HALF: return TypeDesc::HALF; break;
     case Imf::FLOAT: return TypeDesc::FLOAT; break;
-    default: ASSERT_MSG(0, "Unknown Imf::PixelType %d", int(ptype));
+    default:
+        OIIO_ASSERT_MSG(0, "Unknown Imf::PixelType %d", int(ptype));
+        return TypeUnknown;
     }
 }
 
@@ -906,7 +924,7 @@ bool
 OpenEXRInput::PartInfo::query_channels(OpenEXRInput* in,
                                        const Imf::Header* header)
 {
-    ASSERT(!initialized);
+    OIIO_DASSERT(!initialized);
     bool ok        = true;
     spec.nchannels = 0;
     const Imf::ChannelList& channels(header->channels());
@@ -940,14 +958,14 @@ OpenEXRInput::PartInfo::query_channels(OpenEXRInput* in,
             spec.z_channel = c;
         if (cnh[c].xSampling != 1 || cnh[c].ySampling != 1) {
             ok = false;
-            in->error(
+            in->errorf(
                 "Subsampled channels are not supported (channel \"%s\" has sampling %d,%d).",
                 cnh[c].fullname, cnh[c].xSampling, cnh[c].ySampling);
             // FIXME: Some day, we should handle channel subsampling.
         }
     }
-    ASSERT((int)spec.channelnames.size() == spec.nchannels);
-    ASSERT(spec.format != TypeDesc::UNKNOWN);
+    OIIO_DASSERT((int)spec.channelnames.size() == spec.nchannels);
+    OIIO_DASSERT(spec.format != TypeDesc::UNKNOWN);
     if (all_one_format)
         spec.channelformats.clear();
     return ok;
@@ -981,7 +999,7 @@ OpenEXRInput::PartInfo::compute_mipres(int miplevel, ImageSpec& spec) const
     } else if (levelmode == Imf::RIPMAP_LEVELS) {
         // FIXME
     } else {
-        ASSERT_MSG(0, "Unknown levelmode %d", int(levelmode));
+        OIIO_ASSERT_MSG(0, "Unknown levelmode %d", int(levelmode));
     }
 
     spec.width  = w;
@@ -1059,14 +1077,14 @@ OpenEXRInput::seek_subimage(int subimage, int miplevel)
                         = new Imf::InputPart(*m_input_multipart, subimage);
             }
         } catch (const std::exception& e) {
-            error("OpenEXR exception: %s", e.what());
+            errorf("OpenEXR exception: %s", e.what());
             m_scanline_input_part      = NULL;
             m_tiled_input_part         = NULL;
             m_deep_scanline_input_part = NULL;
             m_deep_tiled_input_part    = NULL;
             return false;
         } catch (...) {  // catch-all for edge cases or compiler bugs
-            error("OpenEXR exception: unknown");
+            errorf("OpenEXR exception: unknown");
             m_scanline_input_part      = NULL;
             m_tiled_input_part         = NULL;
             m_deep_scanline_input_part = NULL;
@@ -1193,7 +1211,7 @@ OpenEXRInput::read_native_scanlines(int subimage, int miplevel, int ybegin,
     //    std::cerr << "openexr rns " << ybegin << ' ' << yend << ", channels "
     //              << chbegin << "-" << (chend-1) << "\n";
     if (m_input_scanline == NULL && m_scanline_input_part == NULL) {
-        error(
+        errorf(
             "called OpenEXRInput::read_native_scanlines without an open file");
         return false;
     }
@@ -1225,14 +1243,14 @@ OpenEXRInput::read_native_scanlines(int subimage, int miplevel, int ybegin,
             m_scanline_input_part->setFrameBuffer(frameBuffer);
             m_scanline_input_part->readPixels(ybegin, yend - 1);
         } else {
-            error("Attempted to read scanline from a non-scanline file.");
+            errorf("Attempted to read scanline from a non-scanline file.");
             return false;
         }
     } catch (const std::exception& e) {
-        error("Failed OpenEXR read: %s", e.what());
+        errorf("Failed OpenEXR read: %s", e.what());
         return false;
     } catch (...) {  // catch-all for edge cases or compiler bugs
-        error("Failed OpenEXR read: unknown exception");
+        errorf("Failed OpenEXR read: unknown exception");
         return false;
     }
     return true;
@@ -1284,7 +1302,7 @@ OpenEXRInput::read_native_tiles(int subimage, int miplevel, int xbegin,
 #endif
     if (!(m_input_tiled || m_tiled_input_part)
         || !m_spec.valid_tile_range(xbegin, xend, ybegin, yend, zbegin, zend)) {
-        error("called OpenEXRInput::read_native_tiles without an open file");
+        errorf("called OpenEXRInput::read_native_tiles without an open file");
         return false;
     }
 
@@ -1341,7 +1359,7 @@ OpenEXRInput::read_native_tiles(int subimage, int miplevel, int xbegin,
                                           firstytile, firstytile + nytiles - 1,
                                           m_miplevel, m_miplevel);
         } else {
-            error("Attempted to read tiles from a non-tiled file");
+            errorf("Attempted to read tiles from a non-tiled file");
             return false;
         }
         if (data != origdata) {
@@ -1375,11 +1393,11 @@ OpenEXRInput::read_native_tiles(int subimage, int miplevel, int xbegin,
                                                       xstride, ystride);
             }
         } else {
-            error("Failed OpenEXR read: %s", err);
+            errorf("Failed OpenEXR read: %s", err);
             return false;
         }
     } catch (...) {  // catch-all for edge cases or compiler bugs
-        error("Failed OpenEXR read: unknown exception");
+        errorf("Failed OpenEXR read: unknown exception");
         return false;
     }
 
@@ -1455,7 +1473,7 @@ OpenEXRInput::read_native_deep_scanlines(int subimage, int miplevel, int ybegin,
     if (!seek_subimage(subimage, miplevel))
         return false;
     if (m_deep_scanline_input_part == NULL) {
-        error(
+        errorf(
             "called OpenEXRInput::read_native_deep_scanlines without an open file");
         return false;
     }
@@ -1505,10 +1523,10 @@ OpenEXRInput::read_native_deep_scanlines(int subimage, int miplevel, int ybegin,
         m_deep_scanline_input_part->readPixels(ybegin, yend - 1);
         // deepdata.import_chansamp (pointerbuf);
     } catch (const std::exception& e) {
-        error("Failed OpenEXR read: %s", e.what());
+        errorf("Failed OpenEXR read: %s", e.what());
         return false;
     } catch (...) {  // catch-all for edge cases or compiler bugs
-        error("Failed OpenEXR read: unknown exception");
+        errorf("Failed OpenEXR read: unknown exception");
         return false;
     }
 
@@ -1527,7 +1545,7 @@ OpenEXRInput::read_native_deep_tiles(int subimage, int miplevel, int xbegin,
     if (!seek_subimage(subimage, miplevel))
         return false;
     if (m_deep_tiled_input_part == NULL) {
-        error(
+        errorf(
             "called OpenEXRInput::read_native_deep_tiles without an open file");
         return false;
     }
@@ -1587,10 +1605,10 @@ OpenEXRInput::read_native_deep_tiles(int subimage, int miplevel, int xbegin,
                                            firstytile, firstytile + ytiles - 1,
                                            m_miplevel, m_miplevel);
     } catch (const std::exception& e) {
-        error("Failed OpenEXR read: %s", e.what());
+        errorf("Failed OpenEXR read: %s", e.what());
         return false;
     } catch (...) {  // catch-all for edge cases or compiler bugs
-        error("Failed OpenEXR read: unknown exception");
+        errorf("Failed OpenEXR read: unknown exception");
         return false;
     }
 

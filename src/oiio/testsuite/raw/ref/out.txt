@@ -57,7 +57,7 @@
     Exif:ExposureBiasValue: 0/1 (0)
     Exif:ExposureMode: 0 (auto)
     Exif:ExposureProgram: 3 (aperture priority)
-    Exif:Flash: 16 (no flash, flash supression)
+    Exif:Flash: 16 (no flash, flash suppression)
     Exif:FlashPixVersion: ""
     Exif:FocalLength: 200 (200 mm)
     Exif:FocalPlaneResolutionUnit: 2 (inches)
@@ -74,7 +74,7 @@
     Exif:SubsecTimeDigitized: "00"
     Exif:SubsecTimeOriginal: "00"
     Exif:WhiteBalance: 0 (auto)
-    oiio:ColorSpace: "sRGB"
+    oiio:ColorSpace: "linear"
     oiio:MakerNoteOffset: 0
     raw:Demosaic: "AHD"
 ../../../../../oiio-images/raw/RAW_NIKON_D3X.NEF : 4044 x 6080, 3 channel, uint16 raw
@@ -159,7 +159,7 @@
     Nikon:PhaseDetectAF: 0
     Nikon:ShootingMode: 0
     Nikon:VRMode: 0
-    oiio:ColorSpace: "sRGB"
+    oiio:ColorSpace: "linear"
     oiio:MakerNoteOffset: 0
     raw:Demosaic: "AHD"
 ../../../../../oiio-images/raw/RAW_FUJI_F700.RAF : 2035 x 1533, 3 channel, uint16 raw
@@ -225,7 +225,7 @@
     Fujifilm:Rating: 0
     Fujifilm:ShutterType: 0
     Fujifilm:WB_Preset: 0
-    oiio:ColorSpace: "sRGB"
+    oiio:ColorSpace: "linear"
     oiio:MakerNoteOffset: 0
     raw:Demosaic: "AHD"
 ../../../../../oiio-images/raw/RAW_NIKON_D3X.NEF : 4044 x 6080, 3 channel, uint16 raw
@@ -310,7 +310,7 @@
     Nikon:PhaseDetectAF: 0
     Nikon:ShootingMode: 0
     Nikon:VRMode: 0
-    oiio:ColorSpace: "sRGB"
+    oiio:ColorSpace: "linear"
     oiio:MakerNoteOffset: 0
     raw:Demosaic: "AHD"
 ../../../../../oiio-images/raw/RAW_OLYMPUS_E3.ORF : 3720 x 2800, 3 channel, uint16 raw
@@ -349,7 +349,7 @@
     Exif:Sharpness: 1 (soft)
     Exif:ShutterSpeedValue: 8.32193 (1/319 s)
     Exif:WhiteBalance: 1 (manual)
-    oiio:ColorSpace: "sRGB"
+    oiio:ColorSpace: "linear"
     oiio:MakerNoteOffset: 0
     Olympus:AFFineTune: 0
     Olympus:AFPoint: 0
@@ -364,7 +364,7 @@
     Olympus:ColorSpace: 0
     Olympus:EXIF_MaxAp: 2
     Olympus:FocusMode: 0, 0
-    Olympus:ImageStabilization: 0
+    Olympus:ImageStabilization: -1
     Olympus:InternalBodySerial: "4031712008217001               "
     Olympus:LensFormat: 8
     Olympus:LensID: 256
@@ -394,13 +394,13 @@
     Exif:ExifVersion: ""
     Exif:ExposureBiasValue: -33/100 (-0.33)
     Exif:ExposureProgram: 3 (aperture priority)
-    Exif:Flash: 16 (no flash, flash supression)
+    Exif:Flash: 16 (no flash, flash suppression)
     Exif:FocalLength: 14 (14 mm)
     Exif:ISOSpeedRatings: 100
     Exif:MaxApertureValue: 925/256 (3.61328)
     Exif:MeteringMode: 5 (pattern)
     Exif:ShutterSpeedValue: 8.64386 (1/399 s)
-    oiio:ColorSpace: "sRGB"
+    oiio:ColorSpace: "linear"
     Panasonic:AFPoint: -1
     Panasonic:BlackLevel: 0, 0, 0, 0, 0, 0, 0, 0
     Panasonic:CanonFocalUnits: 1
@@ -427,7 +427,7 @@
     Exif:ExposureBiasValue: 0/167772160 (0)
     Exif:ExposureMode: 0 (auto)
     Exif:ExposureProgram: 2 (normal program)
-    Exif:Flash: 16 (no flash, flash supression)
+    Exif:Flash: 16 (no flash, flash suppression)
     Exif:FocalLength: 42.5 (42.5 mm)
     Exif:FocalLengthIn35mmFilm: 64
     Exif:ISOSpeedRatings: 100
@@ -440,7 +440,7 @@
     Exif:ShutterSpeedValue: 7.96578 (1/249 s)
     Exif:SubjectDistanceRange: 3 (distant)
     Exif:WhiteBalance: 1 (manual)
-    oiio:ColorSpace: "sRGB"
+    oiio:ColorSpace: "linear"
     oiio:MakerNoteOffset: 0
     Pentax:AFAdjustment: 0
     Pentax:AFPoint: -1
@@ -507,7 +507,7 @@
     Exif:Sharpness: 0 (normal)
     Exif:ShutterSpeedValue: 5.90689 (1/59 s)
     Exif:WhiteBalance: 0 (auto)
-    oiio:ColorSpace: "sRGB"
+    oiio:ColorSpace: "linear"
     oiio:MakerNoteOffset: 0
     raw:Demosaic: "AHD"
     Sony:AFMicroAdjOn: 0
@@ -527,7 +527,6 @@
     Sony:ImageStabilization: -1
     Sony:LensID: 40
     Sony:SonyCameraType: 2
-    Sony:TimeStamp: 0, 0, 0, 0, 0, 0
 Comparing "RAW_CANON_EOS_7D.CR2.tif" and "ref/RAW_CANON_EOS_7D.CR2.tif"
 PASS
 Comparing "RAW_NIKON_D3X.NEF.tif" and "ref/RAW_NIKON_D3X.NEF.tif"

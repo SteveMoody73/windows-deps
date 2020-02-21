@@ -1,32 +1,6 @@
-/*
-  Copyright 2010 Larry Gritz and the other authors and contributors.
-  All Rights Reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-  * Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-  * Neither the name of the software's owners nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-  (This is the Modified BSD License)
-*/
+// Copyright 2008-present Contributors to the OpenImageIO project.
+// SPDX-License-Identifier: BSD-3-Clause
+// https://github.com/OpenImageIO/oiio/blob/master/LICENSE.md
 
 #include <cmath>
 #include <cstdio>
@@ -88,7 +62,7 @@ private:
     int m_bitdepth;
     bool m_rawcolor;
     bool m_wantSwap;
-    int m_bytes;
+    int64_t m_bytes;
     int m_subimage;
     int m_subimages_to_write;
     std::vector<ImageSpec> m_subimage_specs;
@@ -171,8 +145,8 @@ bool
 DPXOutput::open(const std::string& name, int subimages, const ImageSpec* specs)
 {
     if (subimages > MAX_DPX_IMAGE_ELEMENTS) {
-        error("DPX does not support more than %d subimages",
-              MAX_DPX_IMAGE_ELEMENTS);
+        errorf("DPX does not support more than %d subimages",
+               MAX_DPX_IMAGE_ELEMENTS);
         return false;
     };
     m_subimages_to_write = subimages;
@@ -199,26 +173,26 @@ DPXOutput::open(const std::string& name, const ImageSpec& userspec,
             write_buffer();
         ++m_subimage;
         if (m_subimage >= m_subimages_to_write) {
-            error("Exceeded the pre-declared number of subimages (%d)",
-                  m_subimages_to_write);
+            errorf("Exceeded the pre-declared number of subimages (%d)",
+                   m_subimages_to_write);
             return false;
         }
         return prep_subimage(m_subimage, true);
         // Nothing else to do, the header taken care of when we opened with
         // Create.
     } else if (mode == AppendMIPLevel) {
-        error("DPX does not support MIP-maps");
+        errorf("DPX does not support MIP-maps");
         return false;
     }
 
     // From here out, all the heavy lifting is done for Create
-    ASSERT(mode == Create);
+    OIIO_DASSERT(mode == Create);
 
     if (is_opened())
         close();  // Close any already-opened file
     m_stream = new OutStream();
     if (!m_stream->Open(name.c_str())) {
-        error("Could not open file \"%s\"", name.c_str());
+        errorf("Could not open \"%s\"", name);
         delete m_stream;
         m_stream = nullptr;
         return false;
@@ -231,15 +205,15 @@ DPXOutput::open(const std::string& name, const ImageSpec& userspec,
 
     // Check for things this format doesn't support
     if (m_spec.width < 1 || m_spec.height < 1) {
-        error("Image resolution must be at least 1x1, you asked for %d x %d",
-              m_spec.width, m_spec.height);
+        errorf("Image resolution must be at least 1x1, you asked for %d x %d",
+               m_spec.width, m_spec.height);
         return false;
     }
 
     if (m_spec.depth < 1)
         m_spec.depth = 1;
     else if (m_spec.depth > 1) {
-        error("DPX does not support volume images (depth > 1)");
+        errorf("DPX does not support volume images (depth > 1)");
         return false;
     }
 
@@ -296,6 +270,9 @@ DPXOutput::open(const std::string& name, const ImageSpec& userspec,
             spec.get_int_attribute("dpx:EndOfImagePadding", 0));
         std::string desc = spec.get_string_attribute("ImageDescription", "");
         m_dpx.header.SetDescription(s, desc.c_str());
+        // TODO: Writing RLE compressed files seem to be broken.
+        // if (Strutil::iequals(spec.get_string_attribute("compression"),"rle"))
+        //     m_dpx.header.SetImageEncoding(s, dpx::kRLE);
     }
 
     m_dpx.header.SetXScannedSize(
@@ -436,14 +413,14 @@ DPXOutput::open(const std::string& name, const ImageSpec& userspec,
 
     // commit!
     if (!m_dpx.WriteHeader()) {
-        error("Failed to write DPX header");
+        errorf("Failed to write DPX header");
         return false;
     }
 
     // write the user data
     if (user && user->datasize() > 0 && user->datasize() <= 1024 * 1024) {
         if (!m_dpx.WriteUserData((void*)user->data())) {
-            error("Failed to write user data");
+            errorf("Failed to write user data");
             return false;
         }
     }
@@ -522,7 +499,7 @@ DPXOutput::prep_subimage(int s, bool allocate)
     if (m_spec.format == TypeDesc::UINT16) {
         m_bitdepth = m_spec.get_int_attribute("oiio:BitsPerSample", 16);
         if (m_bitdepth != 10 && m_bitdepth != 12 && m_bitdepth != 16) {
-            error("Unsupported bit depth %d", m_bitdepth);
+            errorf("Unsupported bit depth %d", m_bitdepth);
             return false;
         }
     }
@@ -531,6 +508,9 @@ DPXOutput::prep_subimage(int s, bool allocate)
     // "filled method A" for 12 bit data.  Does anybody care what
     // packing/filling we use?  Punt and just use "packed".
     if (m_bitdepth == 12)
+        m_packing = dpx::kPacked;
+    // I've also seen problems with 10 bits, but only for 1-channel images.
+    if (m_bitdepth == 10 && m_spec.nchannels == 1)
         m_packing = dpx::kPacked;
 
     if (m_spec.format == TypeDesc::UINT8 || m_spec.format == TypeDesc::INT8)
@@ -555,16 +535,17 @@ DPXOutput::prep_subimage(int s, bool allocate)
                  || m_spec.get_int_attribute("dpx:RawData")  // deprecated
                  || m_spec.get_int_attribute("oiio:RawColor");
 
-    // see if we'll need to convert or not
-    if (m_desc == dpx::kRGB || m_desc == dpx::kRGBA) {
-        // shortcut for RGB(A) that gets the job done
+    // see if we'll need to convert color space or not
+    if (m_desc == dpx::kRGB || m_desc == dpx::kRGBA || m_spec.nchannels == 1) {
+        // shortcut for RGB/RGBA, and for 1-channel images that don't
+        // need to decode color representations.
         m_bytes    = m_spec.scanline_bytes();
         m_rawcolor = true;
     } else {
         m_bytes = dpx::QueryNativeBufferSize(m_desc, m_datasize, m_spec.width,
                                              1);
         if (m_bytes == 0 && !m_rawcolor) {
-            error("Unable to deliver native format data from source data");
+            errorf("Unable to deliver native format data from source data");
             return false;
         } else if (m_bytes < 0) {
             // no need to allocate another buffer
@@ -594,8 +575,8 @@ DPXOutput::write_buffer()
         ok = m_dpx.WriteElement(m_subimage, &m_buf[0], m_datasize);
         if (!ok) {
             const char* err = strerror(errno);
-            error("DPX write failed (%s)",
-                  (err && err[0]) ? err : "unknown error");
+            errorf("DPX write failed (%s)",
+                   (err && err[0]) ? err : "unknown error");
         }
         m_write_pending = false;
     }
@@ -615,7 +596,7 @@ DPXOutput::close()
     bool ok = true;
     if (m_spec.tile_width) {
         // Handle tile emulation -- output the buffered pixels
-        ASSERT(m_tilebuffer.size());
+        OIIO_DASSERT(m_tilebuffer.size());
         ok &= write_scanlines(m_spec.y, m_spec.y + m_spec.height, 0,
                               m_spec.format, &m_tilebuffer[0]);
         std::vector<unsigned char>().swap(m_tilebuffer);

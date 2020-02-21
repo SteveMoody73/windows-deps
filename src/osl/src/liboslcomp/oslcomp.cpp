@@ -188,6 +188,7 @@ OSLCompilerImpl::preprocess_buffer (const std::string &buffer,
                                     std::string &result)
 {
     std::ostringstream ss;
+    ss.imbue (std::locale::classic());  // force C locale
     boost::wave::util::file_position_type current_position;
 
     std::string instring;
@@ -293,10 +294,17 @@ OSLCompilerImpl::preprocess_buffer (const std::string &buffer,
                                     std::string &result)
 {
     std::string instring;
-    if (!stdoslpath.empty())
-        instring = OIIO::Strutil::format("#include \"%s\"\n", stdoslpath);
-    else
+    if (!stdoslpath.empty()) {
+        instring = OIIO::Strutil::format("#include \"%s\"\n",
+                                          OIIO::Strutil::escape_chars(stdoslpath));
+        // Note: because we're turning this from a regular string into a
+        // double-quoted string injected into the OSL parse stream, we need
+        // to fully escape any backslashes used in Windows file paths. We
+        // don't want "c:\path\to\new\osl" to be interpreted as
+        // "c:\path<tab>o<newline>ew\osl" !
+    } else {
         instring = "\n";
+    }
     instring += buffer;
     std::unique_ptr<llvm::MemoryBuffer> mbuf (llvm::MemoryBuffer::getMemBuffer(instring, filename));
 
@@ -773,7 +781,8 @@ OSLCompilerImpl::write_oso_const_value (const ConstantSymbol *sym) const
     int nelements = std::max (1, type.arraylen);
     if (elemtype == TypeDesc::STRING)
         for (int i = 0;  i < nelements;  ++i)
-            oso ("\"%s\"%s", sym->strval(i), nelements>1 ? " " : "");
+            oso ("\"%s\"%s", OIIO::Strutil::escape_chars(sym->strval(i)),
+                 nelements>1 ? " " : "");
     else if (elemtype == TypeDesc::INT)
         for (int i = 0;  i < nelements;  ++i)
             oso ("%d%s", sym->intval(i), nelements>1 ? " " : "");

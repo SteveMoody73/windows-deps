@@ -1,32 +1,6 @@
-/*
-  Copyright 2008 Larry Gritz and the other authors and contributors.
-  All Rights Reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-  * Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-  * Neither the name of the software's owners nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-  (This is the Modified BSD License)
-*/
+// Copyright 2008-present Contributors to the OpenImageIO project.
+// SPDX-License-Identifier: BSD-3-Clause
+// https://github.com/OpenImageIO/oiio/blob/master/LICENSE.md
 
 #include <algorithm>
 #include <cstdio>
@@ -66,6 +40,7 @@ using std::regex_search;
 
 #include <boost/filesystem.hpp>
 namespace filesystem = boost::filesystem;
+using error_code     = boost::system::error_code;
 // FIXME: use std::filesystem when available
 
 
@@ -84,7 +59,7 @@ u8path(string_view name)
 #ifdef _WIN32
     return filesystem::path(Strutil::utf8_to_utf16(name));
 #else
-    return filesystem::path(name.str());
+    return filesystem::path(name.begin(), name.end());
 #endif
 }
 
@@ -118,7 +93,7 @@ const std::string dummy_extension
 #endif
 
 std::string
-Filesystem::filename(const std::string& filepath)
+Filesystem::filename(const std::string& filepath) noexcept
 {
     // To simplify dealing with platform-specific separators and whatnot,
     // just use the Boost routines:
@@ -128,7 +103,7 @@ Filesystem::filename(const std::string& filepath)
 
 
 std::string
-Filesystem::extension(const std::string& filepath, bool include_dot)
+Filesystem::extension(const std::string& filepath, bool include_dot) noexcept
 {
     std::string s = pathstr(u8path(filepath).extension());
     if (!include_dot && !s.empty() && s[0] == '.')
@@ -139,7 +114,7 @@ Filesystem::extension(const std::string& filepath, bool include_dot)
 
 
 std::string
-Filesystem::parent_path(const std::string& filepath)
+Filesystem::parent_path(const std::string& filepath) noexcept
 {
     return pathstr(u8path(filepath).parent_path());
 }
@@ -148,7 +123,7 @@ Filesystem::parent_path(const std::string& filepath)
 
 std::string
 Filesystem::replace_extension(const std::string& filepath,
-                              const std::string& new_extension)
+                              const std::string& new_extension) noexcept
 {
     return pathstr(u8path(filepath).replace_extension(new_extension));
 }
@@ -221,14 +196,16 @@ Filesystem::searchpath_find(const std::string& filename_utf8,
         // std::cerr << "\tPath = '" << d << "'\n";
         const filesystem::path d(u8path(d_utf8));
         filesystem::path f = d / filename;
-        if (is_regular(pathstr(f))) {
+        error_code ec;
+        if (filesystem::is_regular(f, ec)) {
             return pathstr(f);
         }
 
-        if (recursive && is_directory(pathstr(d))) {
+
+        if (recursive && filesystem::is_directory(d, ec)) {
             std::vector<std::string> subdirs;
-            filesystem::directory_iterator end_iter;
-            for (filesystem::directory_iterator s(d); s != end_iter; ++s) {
+            for (filesystem::directory_iterator s(d), end_iter; s != end_iter;
+                 ++s) {
                 if (filesystem::is_directory(s->status())) {
                     subdirs.push_back(pathstr(s->path()));
                 }
@@ -283,7 +260,7 @@ Filesystem::get_directory_entries(const std::string& dirname,
 
 
 bool
-Filesystem::path_is_absolute(const std::string& path, bool dot_is_absolute)
+Filesystem::path_is_absolute(string_view path, bool dot_is_absolute)
 {
     // "./foo" is considered absolute if dot_is_absolute is true.
     // Don't get confused by ".foo", which is not absolute!
@@ -307,43 +284,28 @@ Filesystem::path_is_absolute(const std::string& path, bool dot_is_absolute)
 
 
 bool
-Filesystem::exists(const std::string& path)
+Filesystem::exists(string_view path) noexcept
 {
-    bool r = false;
-    try {
-        r = filesystem::exists(u8path(path));
-    } catch (...) {
-        r = false;
-    }
-    return r;
+    error_code ec;
+    return filesystem::exists(u8path(path), ec);
 }
 
 
 
 bool
-Filesystem::is_directory(const std::string& path)
+Filesystem::is_directory(string_view path) noexcept
 {
-    bool r = false;
-    try {
-        r = filesystem::is_directory(u8path(path));
-    } catch (...) {
-        r = false;
-    }
-    return r;
+    error_code ec;
+    return filesystem::is_directory(u8path(path), ec);
 }
 
 
 
 bool
-Filesystem::is_regular(const std::string& path)
+Filesystem::is_regular(string_view path) noexcept
 {
-    bool r = false;
-    try {
-        r = filesystem::is_regular_file(u8path(path));
-    } catch (...) {
-        r = false;
-    }
-    return r;
+    error_code ec;
+    return filesystem::is_regular_file(u8path(path), ec);
 }
 
 
@@ -351,7 +313,7 @@ Filesystem::is_regular(const std::string& path)
 bool
 Filesystem::create_directory(string_view path, std::string& err)
 {
-    boost::system::error_code ec;
+    error_code ec;
     bool ok = filesystem::create_directory(u8path(path), ec);
     if (ok)
         err.clear();
@@ -364,7 +326,7 @@ Filesystem::create_directory(string_view path, std::string& err)
 bool
 Filesystem::copy(string_view from, string_view to, std::string& err)
 {
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::copy(u8path(from), u8path(to), ec);
     if (!ec) {
         err.clear();
@@ -380,7 +342,7 @@ Filesystem::copy(string_view from, string_view to, std::string& err)
 bool
 Filesystem::rename(string_view from, string_view to, std::string& err)
 {
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::rename(u8path(from), u8path(to), ec);
     if (!ec) {
         err.clear();
@@ -396,7 +358,7 @@ Filesystem::rename(string_view from, string_view to, std::string& err)
 bool
 Filesystem::remove(string_view path, std::string& err)
 {
-    boost::system::error_code ec;
+    error_code ec;
     bool ok = filesystem::remove(u8path(path), ec);
     if (ok)
         err.clear();
@@ -410,7 +372,7 @@ Filesystem::remove(string_view path, std::string& err)
 unsigned long long
 Filesystem::remove_all(string_view path, std::string& err)
 {
-    boost::system::error_code ec;
+    error_code ec;
     unsigned long long n = filesystem::remove_all(u8path(path), ec);
     if (!ec)
         err.clear();
@@ -424,7 +386,7 @@ Filesystem::remove_all(string_view path, std::string& err)
 std::string
 Filesystem::temp_directory_path()
 {
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::path p = filesystem::temp_directory_path(ec);
     return ec ? std::string() : pathstr(p);
 }
@@ -434,7 +396,7 @@ Filesystem::temp_directory_path()
 std::string
 Filesystem::unique_path(string_view model)
 {
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::path p = filesystem::unique_path(u8path(model), ec);
     return ec ? std::string() : pathstr(p);
 }
@@ -444,7 +406,7 @@ Filesystem::unique_path(string_view model)
 std::string
 Filesystem::current_path()
 {
-    boost::system::error_code ec;
+    error_code ec;
     filesystem::path p = filesystem::current_path(ec);
     return ec ? std::string() : pathstr(p);
 }
@@ -463,6 +425,30 @@ Filesystem::fopen(string_view path, string_view mode)
 #else
     // on Unix platforms passing in UTF-8 works
     return ::fopen(path.c_str(), mode.c_str());
+#endif
+}
+
+
+
+int
+Filesystem::fseek(FILE* file, int64_t offset, int whence)
+{
+#ifdef _MSC_VER
+    return _fseeki64(file, __int64(offset), whence);
+#else
+    return fseeko(file, offset, whence);
+#endif
+}
+
+
+
+int64_t
+Filesystem::ftell(FILE* file)
+{
+#ifdef _MSC_VER
+    return _ftelli64(file);
+#else
+    return ftello(file);
 #endif
 }
 
@@ -529,11 +515,7 @@ Filesystem::read_bytes(string_view path, void* buffer, size_t n, size_t pos)
 {
     size_t ret = 0;
     if (FILE* file = Filesystem::fopen(path, "rb")) {
-#ifdef _MSC_VER
-        _fseeki64(file, __int64(pos), SEEK_SET);
-#else
-        fseeko(file, pos, SEEK_SET);
-#endif
+        Filesystem::fseek(file, pos, SEEK_SET);
         ret = fread(buffer, 1, n, file);
         fclose(file);
     }
@@ -543,45 +525,30 @@ Filesystem::read_bytes(string_view path, void* buffer, size_t n, size_t pos)
 
 
 std::time_t
-Filesystem::last_write_time(const std::string& path)
+Filesystem::last_write_time(string_view path) noexcept
 {
-    if (!exists(path))
-        return 0;
-    try {
-        return filesystem::last_write_time(u8path(path));
-    } catch (...) {
-        // File doesn't exist
-        return 0;
-    }
+    error_code ec;
+    std::time_t t = filesystem::last_write_time(u8path(path), ec);
+    return ec ? 0 : t;
 }
 
 
 
 void
-Filesystem::last_write_time(const std::string& path, std::time_t time)
+Filesystem::last_write_time(string_view path, std::time_t time) noexcept
 {
-    if (!exists(path))
-        return;
-    try {
-        filesystem::last_write_time(u8path(path), time);
-    } catch (...) {
-        // File doesn't exist
-    }
+    error_code ec;
+    filesystem::last_write_time(u8path(path), time, ec);
 }
 
 
 
 uint64_t
-Filesystem::file_size(string_view path)
+Filesystem::file_size(string_view path) noexcept
 {
-    if (!exists(path))
-        return 0;
-    try {
-        return filesystem::file_size(u8path(path));
-    } catch (...) {
-        // File doesn't exist
-        return 0;
-    }
+    error_code ec;
+    uint64_t sz = filesystem::file_size(u8path(path), ec);
+    return ec ? 0 : sz;
 }
 
 
@@ -745,7 +712,7 @@ Filesystem::enumerate_file_sequence(const std::string& pattern,
                                     const std::vector<string_view>& views,
                                     std::vector<std::string>& filenames)
 {
-    ASSERT(views.size() == 0 || views.size() == numbers.size());
+    OIIO_ASSERT(views.size() == 0 || views.size() == numbers.size());
     filenames.clear();
     for (size_t i = 0, e = numbers.size(); i < e; ++i) {
         std::string f = pattern;
@@ -884,11 +851,11 @@ Filesystem::scan_for_matching_filenames(const std::string& pattern_,
     try {
         regex pattern_re(pattern_re_str);
 
-        filesystem::directory_iterator end_it;
-        for (filesystem::directory_iterator it(u8path(directory)); it != end_it;
-             ++it) {
-            const std::string f = pathstr(it->path());
-            if (is_regular(f)) {
+        for (filesystem::directory_iterator it(u8path(directory)), end_it;
+             it != end_it; ++it) {
+            error_code ec;
+            if (filesystem::is_regular(it->path(), ec)) {
+                const std::string f = pathstr(it->path());
                 match_results<std::string::const_iterator> frame_match;
                 if (regex_match(f, frame_match, pattern_re)) {
                     std::string thenumber(frame_match[1].first,
@@ -936,10 +903,10 @@ Filesystem::IOFile::IOFile(FILE* file, Mode mode)
     , m_file(file)
 {
     if (m_mode == Read) {
-        m_pos = ftell(m_file);           // save old position
-        fseek(m_file, 0, SEEK_END);      // seek to end
-        m_size = size_t(ftell(m_file));  // size is end position
-        fseek(m_file, m_pos, SEEK_SET);  // restore old position
+        m_pos = Filesystem::ftell(m_file);           // save old position
+        Filesystem::fseek(m_file, 0, SEEK_END);      // seek to end
+        m_size = size_t(Filesystem::ftell(m_file));  // size is end position
+        Filesystem::fseek(m_file, m_pos, SEEK_SET);  // restore old position
     }
 }
 
@@ -965,11 +932,7 @@ Filesystem::IOFile::seek(int64_t offset)
     if (!m_file)
         return false;
     m_pos = offset;
-#ifdef _MSC_VER
-    return _fseeki64(m_file, __int64(offset), SEEK_SET) == 0;
-#else
-    return fseeko(m_file, offset, SEEK_SET) == 0;
-#endif
+    return Filesystem::fseek(m_file, offset, SEEK_SET) == 0;
 }
 
 size_t

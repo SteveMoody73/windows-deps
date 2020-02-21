@@ -21,43 +21,56 @@ echo ""
 echo "Before my brew installs:"
 brew list --versions
 
-if [[ "$OIIOTARGET" == "clang-format" ]] ; then
+if [[ "$BUILDTARGET" == "clang-format" ]] ; then
     # If we are running for the sake of clang-format only, just install the
     # bare minimum packages and return.
-    brew install ilmbase openexr llvm
-    exit 0
+    brew install --display-times ilmbase openexr llvm clang-format libtiff libpng boost ninja giflib
+    brew install --display-times python && true
+    brew upgrade --display-times python && true
+    brew link --overwrite python
+    brew upgrade --display-times cmake && true
+else
+    # All cases except for clang-format target, we need the dependencies.
+    brew install --display-times gcc ccache cmake ninja boost && true
+    brew link --overwrite gcc
+    brew install --display-times python && true
+    brew upgrade --display-times python && true
+    brew link --overwrite python
+    brew upgrade --display-times cmake && true
+    brew install --display-times libtiff ilmbase openexr opencolorio
+    brew install --display-times libpng giflib webp jpeg-turbo openjpeg
+    brew install --display-times freetype libraw dcmtk pybind11 numpy
+    brew install --display-times field3d ffmpeg libheif libsquish
+    brew install --display-times openvdb tbb
+    brew install --display-times opencv qt ptex
 fi
 
-brew install gcc
-brew link --overwrite gcc
-brew install ccache cmake ninja
-brew install ilmbase openexr
-brew install opencolorio
-brew install freetype
-brew install libraw
-brew install libpng webp jpeg-turbo
-brew install openjpeg
-brew install dcmtk
-brew install qt
-brew install -s field3d
-# Note: field3d must be build from source to fix boost mismatch as of
-# Nov 2018. Maybe it will be fixed soon? Check later.
-brew install ffmpeg
-brew install opencv
-brew install tbb
-brew install openvdb
-brew install pybind11
 if [[ "$LINKSTATIC" == "1" ]] ; then
-    brew install little-cms2 tinyxml szip
-    brew install homebrew/dupes/bzip2
-    brew install yaml-cpp --with-static-lib
+    brew install --display-times little-cms2 tinyxml szip
+    brew install --display-times homebrew/dupes/bzip2
+    brew install --display-times yaml-cpp --with-static-lib
 fi
 if [[ "$CLANG_TIDY" != "" ]] ; then
     # If we are running for the sake of clang-tidy only, we will need
     # a modern clang version not just the xcode one.
-    brew install llvm
+    brew install --display-times llvm
 fi
 
 echo ""
 echo "After brew installs:"
 brew list --versions
+
+# Needed on some systems
+pip install numpy
+
+# Set up paths. These will only affect the caller if this script is
+# run with 'source' rather than in a separate shell.
+export PATH=/usr/local/opt/qt5/bin:$PATH ;
+export PATH=/usr/local/opt/python/libexec/bin:$PATH ;
+export PYTHONPATH=/usr/local/lib/python${PYTHON_VERSION}/site-packages:$PYTHONPATH ;
+export PATH=/usr/local/Cellar/llvm/9.0.0*/bin:$PATH ;
+
+# If field3d and hdf5 get even slightly out of sync, hdf5 will throw fits.
+# This is unnecessary, so we disable the step to make CI more likely to
+# pass in cases where they don't exactly match on the Travis/GH instances.
+export HDF5_DISABLE_VERSION_CHECK=1

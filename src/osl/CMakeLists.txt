@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.2.2)
 cmake_policy (SET CMP0048 NEW)  # Allow VERSION specifier in project()
 project (OSL
-         VERSION 1.10.5
+         VERSION 1.10.9
          LANGUAGES CXX C)
 set (PROJ_NAME ${PROJECT_NAME})    # short name
 string (TOLOWER ${PROJ_NAME} PROJ_NAME_LOWER)  # short name lower case
@@ -176,7 +176,7 @@ add_subdirectory (src/osl.imageio)
 endif ()
 
 if (USE_QT AND Qt5_FOUND)
-# add_subdirectory (src/osltoy)
+add_subdirectory (src/osltoy)
 endif ()
 
 if (OSL_BUILD_SHADERS)
@@ -262,8 +262,8 @@ if (OSL_BUILD_TESTS)
 TESTSUITE ( aastep allowconnect-err and-or-not-synonyms arithmetic
             array array-derivs array-range array-aassign
             blackbody blendmath breakcont
-            bug-array-heapoffsets
-            bug-locallifetime bug-outputinit bug-param-duplicate bug-peep
+            bug-array-heapoffsets bug-locallifetime bug-outputinit
+            bug-param-duplicate bug-peep bug-return
             cellnoise closure closure-array color comparison
             compile-buffer
             component-range
@@ -285,6 +285,7 @@ TESTSUITE ( aastep allowconnect-err and-or-not-synonyms arithmetic
             layers-nonlazycopy layers-repeatedoutputs
             linearstep
             logic loop matrix message
+            mergeinstances-duplicate-entrylayers
             mergeinstances-nouserdata mergeinstances-vararray
             metadata-braces miscmath missing-shader
             noise noise-cell
@@ -329,7 +330,7 @@ TESTSUITE ( aastep allowconnect-err and-or-not-synonyms arithmetic
             texture-alpha texture-blur texture-connected-options
             texture-derivs texture-errormsg
             texture-firstchannel texture-interp
-            texture-missingcolor texture-simple
+            texture-missingalpha texture-missingcolor texture-simple
             texture-smallderivs texture-swirl texture-udim
             texture-width texture-withderivs texture-wrap
             trailing-commas

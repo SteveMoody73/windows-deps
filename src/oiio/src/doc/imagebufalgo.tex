@@ -909,7 +909,6 @@ bool {\ce fit} (ImageBuf \&dst, const ImageBuf \&src, string_view filtername="",
 bool {\ce fit} (ImageBuf \&dst, const ImageBuf \&src, Filter2D *filter, \\
         \bigspc  bool exact=false, ROI roi=\{\}, int nthreads=0)}
 \index{ImageBufAlgo!fit} \indexapi{fit}
-\NEW % 1.9
 
 Fit {\cf src} into {\cf dst} (to a size specified by {\cf roi}, if {\cf dst}
 is not initialized), resizing but preserving its original aspect ratio.
@@ -1208,7 +1207,6 @@ bool {\ce contrast_remap} (ImageBuf \&dst, const ImageBuf \&src,\\
         \bigspc\spc cspan<float> scontrast=1.0f, cspan<float> sthresh=0.5f, \\
         \bigspc\spc ROI roi=\{\}, int nthreads=0)}
 \index{ImageBufAlgo!contrast_remap} \indexapi{contrast_remap}
-\NEW % 1.9
 
 Return (or copy into {\cf dst}) pixel values that are a contrast-remap
 of the corresponding values of the {\cf src} image, transforming pixel
@@ -1323,9 +1321,9 @@ those desirable qualities (and are this not recommended): \qkw{blue-red},
 \includegraphics[width=0.9in]{figures/tahoe-small.jpg} &
 \includegraphics[width=0.9in]{figures/colormap-inferno.jpg} &
 \includegraphics[width=0.9in]{figures/colormap-viridis.jpg} &
-\includegraphics[width=0.9in]{figures/colormap-spectrum.jpg} &
+\includegraphics[width=0.9in]{figures/colormap-turbo.jpg} &
 \includegraphics[width=0.9in]{figures/colormap-custom.jpg} \\
-original & inferno & viridis & spectrum & custom values \\
+original & inferno & viridis & turbo & custom values \\
 \end{tabular}
 \apiend
 
@@ -2263,6 +2261,51 @@ to \qkw{linear} and vice versa.
 \end{code}
 \apiend
 
+
+\apiitem{ImageBuf {\ce colormatrixtransform} (const ImageBuf \&src, \\
+  \bigspc\bigspc const Imath::M44f\& M, bool unpremult=true, \\
+  \bigspc\bigspc ROI roi=\{\}, int nthreads=0) \\
+bool {\ce colormatrixtransform} (ImageBuf \&dst, const ImageBuf \&src, \\
+  \bigspc\bigspc const Imath::M44f\& M, bool unpremult=true, \\
+  \bigspc\bigspc ROI roi=\{\}, int nthreads=0)}
+\index{ImageBufAlgo!colormatrixtransform} \indexapi{colormatrixtransform}
+\NEW % 2.1
+Return (or copy into {\cf dst}) the pixels of {\cf src} within the ROI,
+applying a color transform to the pixel values. The color transform is
+specified by $4 \times 4$ matrix $M$ as:
+
+$$ C_{\mathrm{new}} = \left[ \begin{array}{cccc} C_r & C_g & C_b & C_\alpha \end{array} \right]
+\left[ \begin{array}{cccc}
+    M_{00} & M_{01} & M_{02} & M_{03} \\
+    M_{10} & M_{11} & M_{12} & M_{13} \\
+    M_{20} & M_{21} & M_{22} & M_{23} \\
+    M_{30} & M_{31} & M_{32} & M_{33}
+\end{array} \right]
+$$
+
+If {\cf unpremult} is {\cf true} and the image has an alpha channel,
+unpremultiply (divide color channels by alpha) before color conversion, then
+premultiply again after the color conversion.
+
+\smallskip
+\noindent Example:
+\begin{code}
+    ImageBuf Src ("tahoe.jpg");
+    Imath::M44f M ( .8047379,  .5058794, -.3106172, 0,
+                   -.3106172,  .8047379,  .5058794, 0,
+                    .5058794, -.3106172,  .8047379, 0,
+                     0,         0,         0,       1);
+    ImageBuf dst = ImageBufAlgo::colormatrixtransform (Src, M);
+\end{code}
+
+\noindent \begin{tabular}{cccc}
+\includegraphics[width=1.5in]{figures/tahoe-small.jpg} &
+\includegraphics[width=1.5in]{figures/tahoe-ccmatrix.jpg} \\
+original & matrix applied \\
+\end{tabular}
+\apiend
+
+
 \apiitem{ImageBuf {\ce ociolook} (const ImageBuf \&src, \\
   \bigspc\spc string_view looks, string_view fromspace, string_view tospace, \\
   \bigspc\spc bool inverse=false, bool unpremult=true, \\
@@ -2314,7 +2357,9 @@ bool {\ce ociodisplay} (ImageBuf \&dst, const ImageBuf \&src, string_view displa
   \bigspc\spc ROI roi=\{\}, int nthreads=0)}
 \index{ImageBufAlgo!ociodisplay} \indexapi{ociodisplay}
 Return (or copy into {\cf dst}) the pixels of {\cf src} within the ROI,
-applying an OpenColorIO ``display'' transform to the pixel values.
+applying an OpenColorIO ``display'' transform to the pixel values. If the
+{\cf display} or {\cf view} are the empty string, they will use the default
+display or view, respectively.
 
 If {\cf fromspace} is not supplied, it will assume that the source color
 space is whatever is indicated by the source image's metadata or filename,
@@ -2586,7 +2631,7 @@ created.  The full list of supported configuration options is:
     ImageSpec config;
     config.attribute ("maketx:highlightcomp", 1);
     config.attribute ("maketx:filtername", "lanczos3");
-    config.attribute ("maketx:opaquedetect", 1);
+    config.attribute ("maketx:opaque_detect", 1);
     stringstream s;
     bool ok = ImageBufAlgo::make_texture (ImageBufAlgo::MakeTxTexture,
                                           Input, "texture.exr", config, &s);

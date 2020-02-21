@@ -1,3 +1,39 @@
+Release 1.10.9 -- 1 Feb 2020 (compared to 1.10.8)
+--------------------------------------------------
+* Windows fix for incorrectly interpreting paths to oslc.exe as if they were
+  "escaped" strings -- for example, `"c:\path\to\new\oslc"` should not be
+  interpreted as `"c:\path<tab>o<newline>ewoslc"`. #1101
+* Speed up OSL `concat()` function. #1103
+
+Release 1.10.8 -- 1 Dec 2019 (compared to 1.10.7)
+--------------------------------------------------
+* Fix dual implementation of division so that the value is consistent with
+  regular division (#1066)
+* Python3 safety of tests and scripts. #1071
+* Handle escaped string literals (like "\tfoo\n") more correctly. #1073
+* Fixes to ensure locale independence. #1075
+* Build: on OSX, better logic about the OIIO plugin must be built as a
+  module or as a shared library. #1078
+* Remove pointless assertions from the TypeSpec class. #1079
+
+Release 1.10.7 -- Oct 1, 2019 (compared to 1.10.6)
+--------------------------------------------------
+* Adjust for deprecated material in more recent Qt releases. #1043
+* Fixes for MinGW compiler. #1047
+* Texture "missingalpha" optional parameter generated incorrect code and
+  crashed. #1044
+* Fix incorrect optimizations surrounding 'exit()' calls in the middle
+  of certain shader code blocks. #1051
+* LLVM 9 / clang 9 compatibility. #1058
+* Fixes to Travis CI system to keep up with OIIO master recently upgrading
+  its minimum required CMake. #1065
+
+Release 1.10.6 -- Jul 4, 2019 (compared to 1.10.5)
+--------------------------------------------------
+* Build: Fixes to FindOpenEXR.cmake. #1022
+* ShadingSystem: when building a shader group from serialized commands,
+  respect the global lockgeom default. #1032
+
 Release 1.10.5 -- May 1, 2019 (compared to 1.10.4)
 --------------------------------------------------
 * Extend linearstep() and smooth_linearstep() to work with color, point,

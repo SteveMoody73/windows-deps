@@ -1,32 +1,6 @@
-/*
-  Copyright 2010 Larry Gritz and the other authors and contributors.
-  All Rights Reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-  * Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-  * Neither the name of the software's owners nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-  (This is the Modified BSD License)
-*/
+// Copyright 2008-present Contributors to the OpenImageIO project.
+// SPDX-License-Identifier: BSD-3-Clause
+// https://github.com/OpenImageIO/oiio/blob/master/LICENSE.md
 // clang-format off
 
 #include <cstdio>
@@ -79,7 +53,7 @@ test_format()
     bench ("Strutil::to_string(float)", [&](){ DoNotOptimize (Strutil::to_string(123.45f)); });
 
     bench ("std::sprintf(\"%d\")", [&](){ DoNotOptimize (std::sprintf(buffer,"%d",123)); });
-    bench ("Strutil::sprintf(\"%d\")", [&](){ DoNotOptimize (Strutil::sprintf("%g",123)); });
+    bench ("Strutil::sprintf(\"%d\")", [&](){ DoNotOptimize (Strutil::sprintf("%g",123.0f)); });
     bench ("Strutil::fmt::format(\"{}\")", [&](){ DoNotOptimize (Strutil::fmt::format("{}",123)); });
     bench ("Strutil::to_string(int)", [&](){ DoNotOptimize (Strutil::to_string(123)); });
 
@@ -87,7 +61,7 @@ test_format()
                DoNotOptimize (std::sprintf(buffer,"%g %d %s %d %s %g", 123.45f, 1234, "foobar", 42, "kablooey", 3.14159f));
            });
     bench ("Strutil::sprintf(\"%g %d %s %d %s %g\")", [&](){
-               DoNotOptimize (Strutil::sprintf("%g %d %s %d %s %g", 123.45f, 1234, "foobar", "kablooey", 42, 3.14159f));
+               DoNotOptimize (Strutil::sprintf("%g %d %s %d %s %g", 123.45f, 1234, "foobar", 42, "kablooey", 3.14159f));
            });
     bench ("Strutil::fmt::format(\"{} {} {} {} {} {}\")", [&](){
                DoNotOptimize (Strutil::fmt::format("{} {} {} {} {} {}", 123.45f, 1234, "foobar", 42, "kablooey", 3.14159f));
@@ -192,11 +166,20 @@ test_get_rest_arguments()
 
 
 void
+test_escape(string_view raw, string_view escaped)
+{
+    Strutil::printf ("escape '%s' <-> '%s'\n", raw, escaped);
+    OIIO_CHECK_EQUAL(Strutil::escape_chars(raw), escaped);
+    OIIO_CHECK_EQUAL(Strutil::unescape_chars(escaped), raw);
+}
+
+
+
+void
 test_escape_sequences()
 {
-    OIIO_CHECK_EQUAL(Strutil::unescape_chars("\\\\ \\n \\r \\017"),
-                     "\\ \n \r \017");
-    OIIO_CHECK_EQUAL(Strutil::escape_chars("\\ \n \r"), "\\\\ \\n \\r");
+    test_escape ("\\ \n \r \t", "\\\\ \\n \\r \\t");
+    test_escape (" \"quoted\" ",  " \\\"quoted\\\" ");
 }
 
 
@@ -331,6 +314,18 @@ test_strip()
     OIIO_CHECK_EQUAL(Strutil::strip("  \tHello, world\n"), "Hello, world");
     OIIO_CHECK_EQUAL(Strutil::strip(" \t"), "");
     OIIO_CHECK_EQUAL(Strutil::strip(""), "");
+
+    OIIO_CHECK_EQUAL(Strutil::lstrip("abcdefbac", "abc"), "defbac");
+    OIIO_CHECK_EQUAL(Strutil::lstrip("defghi", "abc"), "defghi");
+    OIIO_CHECK_EQUAL(Strutil::lstrip("  \tHello, world\n"), "Hello, world\n");
+    OIIO_CHECK_EQUAL(Strutil::lstrip(" \t"), "");
+    OIIO_CHECK_EQUAL(Strutil::lstrip(""), "");
+
+    OIIO_CHECK_EQUAL(Strutil::rstrip("abcdefbac", "abc"), "abcdef");
+    OIIO_CHECK_EQUAL(Strutil::rstrip("defghi", "abc"), "defghi");
+    OIIO_CHECK_EQUAL(Strutil::rstrip("  \tHello, world\n"), "  \tHello, world");
+    OIIO_CHECK_EQUAL(Strutil::rstrip(" \t"), "");
+    OIIO_CHECK_EQUAL(Strutil::rstrip(""), "");
 }
 
 
@@ -389,6 +384,11 @@ test_join()
 
     int intarr[] = { 4, 2 };
     OIIO_CHECK_EQUAL(Strutil::join(intarr, ","), "4,2");
+
+    // Test join's `len` parameter.
+    float farr[] = { 1, 2, 3.5, 4, 5 };
+    OIIO_CHECK_EQUAL(Strutil::join(farr, ",", 3), "1,2,3.5");
+    OIIO_CHECK_EQUAL(Strutil::join(farr, ",", 7), "1,2,3.5,4,5,0,0");
 }
 
 
@@ -597,6 +597,7 @@ test_to_string()
 void
 test_extract()
 {
+    std::cout << "Testing extract_from_list_string\n";
     std::vector<int> vals;
     int n;
 
@@ -658,6 +659,7 @@ test_extract()
 void
 test_safe_strcpy()
 {
+    std::cout << "Testing safe_strcpy\n";
     {  // test in-bounds copy
         char result[4] = { '0', '1', '2', '3' };
         Strutil::safe_strcpy(result, "A", 3);
@@ -698,8 +700,18 @@ test_safe_strcpy()
 void
 test_string_view()
 {
+    std::cout << "Testing string_view methods\n";
     std::string s("0123401234");
     string_view sr(s);
+
+    OIIO_CHECK_EQUAL(sr.substr(0), sr); // whole string
+    OIIO_CHECK_EQUAL(sr.substr(2), "23401234"); // nonzero pos, default n
+    OIIO_CHECK_EQUAL(sr.substr(2, 3), "234"); // true substrng
+    OIIO_CHECK_EQUAL(sr.substr(string_view::npos, 3), ""); // npos start
+    OIIO_CHECK_EQUAL(sr.substr(3, 0), ""); // zero length
+    OIIO_CHECK_EQUAL(sr.substr(10, 3), ""); // start at end
+    OIIO_CHECK_EQUAL(sr.substr(18, 3), ""); // start past end
+    OIIO_CHECK_EQUAL(sr.substr(4, 18), "401234"); // end too big
 
     OIIO_CHECK_EQUAL(sr.find("123"), s.find("123"));
     OIIO_CHECK_EQUAL(sr.find("123"), 1);
@@ -754,7 +766,8 @@ test_string_view()
     OIIO_CHECK_EQUAL(sr.find_last_not_of("234"), 6);
     OIIO_CHECK_EQUAL(sr.find_last_not_of('4', 5), 3);
     OIIO_CHECK_EQUAL(sr.find_last_not_of("234", 5), 1);
-    OIIO_CHECK_EQUAL(sr.find_last_of("xyz"), string_view::npos);
+    OIIO_CHECK_EQUAL(sr.find_last_not_of("xyz"), 9);
+    OIIO_CHECK_EQUAL(sr.find_last_not_of("01234"), string_view::npos);
 }
 
 
@@ -767,7 +780,14 @@ void test_parse ()
     s = "";        skip_whitespace(s);  OIIO_CHECK_EQUAL (s, "");
     s = "   ";     skip_whitespace(s);  OIIO_CHECK_EQUAL (s, "");
     s = "foo";     skip_whitespace(s);  OIIO_CHECK_EQUAL (s, "foo");
+    s = "\tfoo\t"; skip_whitespace(s);  OIIO_CHECK_EQUAL (s, "foo\t");
     s = "  foo  "; skip_whitespace(s);  OIIO_CHECK_EQUAL (s, "foo  ");
+
+    s = "";        remove_trailing_whitespace(s);  OIIO_CHECK_EQUAL (s, "");
+    s = "   ";     remove_trailing_whitespace(s);  OIIO_CHECK_EQUAL (s, "");
+    s = "foo";     remove_trailing_whitespace(s);  OIIO_CHECK_EQUAL (s, "foo");
+    s = "\tfoo\t"; remove_trailing_whitespace(s);  OIIO_CHECK_EQUAL (s, "\tfoo");
+    s = "  foo  "; remove_trailing_whitespace(s);  OIIO_CHECK_EQUAL (s, "  foo");
 
     s = "abc"; OIIO_CHECK_ASSERT (! parse_char (s, 'd') && s == "abc");
 
@@ -808,6 +828,17 @@ void test_parse ()
     parse_string (s, ss, true, DeleteQuotes);
     OIIO_CHECK_EQUAL (ss, "foo bar");
     OIIO_CHECK_EQUAL (s, " baz");
+    s = "'foo bar' baz";
+
+    s = "\"foo \\\"bar\\\" baz\" blort";
+    parse_string (s, ss, true, DeleteQuotes);
+    OIIO_CHECK_EQUAL (ss, "foo \\\"bar\\\" baz");
+    OIIO_CHECK_EQUAL (s, " blort");
+    s = "\"foo \\\"bar\\\" baz\" blort";
+    parse_string (s, ss, true, KeepQuotes);
+    OIIO_CHECK_EQUAL (ss, "\"foo \\\"bar\\\" baz\"");
+    OIIO_CHECK_EQUAL (s, " blort");
+
     s = "'foo bar' baz";
     parse_string (s, ss, true, KeepQuotes);
     OIIO_CHECK_EQUAL (ss, "'foo bar'");
@@ -941,6 +972,43 @@ test_float_formatting()
 
 
 
+template<typename S, typename T>
+void
+test_string_compare_function_impl()
+{
+    S foo("foo");
+    // Test same string
+    OIIO_CHECK_EQUAL(foo.compare(T("foo")), 0);
+    // Test different string of same length
+    OIIO_CHECK_GE(foo.compare(T("bar")), 0);
+    OIIO_CHECK_GE(foo.compare(T("fon")), 0);
+    OIIO_CHECK_LE(foo.compare(T("fop")), 0);
+    // Test against shorter
+    OIIO_CHECK_GE(foo.compare(T("a")), 0);
+    OIIO_CHECK_GE(foo.compare(T("fo")), 0); // common sub, ing
+    OIIO_CHECK_LE(foo.compare(T("foobar")), 0); // common substring
+    OIIO_CHECK_GE(foo.compare(T("bart")), 0);
+    // Test against empty string
+    OIIO_CHECK_GE(foo.compare(""), 0);
+}
+
+
+void
+test_string_compare_function()
+{
+    test_string_compare_function_impl<ustring, const char*>();
+    test_string_compare_function_impl<ustring, string_view>();
+    test_string_compare_function_impl<ustring, ustring>();
+    test_string_compare_function_impl<ustring, std::string>();
+
+    test_string_compare_function_impl<string_view, const char*>();
+    test_string_compare_function_impl<string_view, string_view>();
+    test_string_compare_function_impl<string_view, ustring>();
+    test_string_compare_function_impl<string_view, std::string>();
+}
+
+
+
 int
 main(int argc, char* argv[])
 {
@@ -967,6 +1035,7 @@ main(int argc, char* argv[])
     test_parse();
     test_locale();
     // test_float_formatting ();
+    test_string_compare_function();
 
     return unit_test_failures;
 }

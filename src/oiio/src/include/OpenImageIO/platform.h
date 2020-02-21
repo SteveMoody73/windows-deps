@@ -1,32 +1,6 @@
-/*
-  Copyright 2014 Larry Gritz and the other authors and contributors.
-  All Rights Reserved.
-
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions are
-  met:
-  * Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-  * Neither the name of the software's owners nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-  (This is the Modified BSD License)
-*/
+// Copyright 2008-present Contributors to the OpenImageIO project.
+// SPDX-License-Identifier: BSD-3-Clause
+// https://github.com/OpenImageIO/oiio/blob/master/LICENSE.md
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -39,6 +13,8 @@
 
 #pragma once
 
+#include <cstdlib>
+#include <type_traits>
 #include <utility>  // std::forward
 
 // Make sure all platforms have the explicit sized integer types
@@ -55,7 +31,7 @@
 #    include <malloc.h>  // for alloca
 #endif
 
-#if defined(_MSC_VER) || defined(_WIN32)
+#if defined(_WIN32)
 #    ifndef WIN32_LEAN_AND_MEAN
 #        define WIN32_LEAN_AND_MEAN
 #    endif
@@ -75,9 +51,9 @@
 #include <OpenImageIO/oiioversion.h>
 
 // Detect which C++ standard we're using, and handy macros.
+// See https://en.cppreference.com/w/cpp/compiler_support
 //
-// OIIO_CPLUSPLUS_VERSION : which C++ standard is compiling (3, 11, 14, ...)
-// OIIO_USING_CPP11 : (deprecated) defined and 1 if using C++11 or newer.
+// OIIO_CPLUSPLUS_VERSION : which C++ standard is compiling (11, 14, ...)
 // OIIO_CONSTEXPR14 : constexpr for C++ >= 14, otherwise nothing (this is
 //                      useful for things that can only be constexpr for 14)
 // OIIO_CONSTEXPR17 : constexpr for C++ >= 17, otherwise nothing (this is
@@ -89,15 +65,20 @@
 // OIIO_CPLUSPLUS_VERSION defined below will be set to the right number for
 // the C++ standard being compiled RIGHT NOW. These two things may be the
 // same when compiling OIIO, but they may not be the same if another
-// packages is compiling against OIIO and using these headers (OIIO may be
-// C++11 but the client package may be older, or vice versa -- use these two
+// package is compiling against OIIO and using these headers (OIIO may be
+// C++11 but the client package may be newer, or vice versa -- use these two
 // symbols to differentiate these cases, when important).
-#if (__cplusplus >= 201703L)
+#if (__cplusplus >= 202001L)
+#    define OIIO_CPLUSPLUS_VERSION 20
+#    define OIIO_CONSTEXPR14 constexpr
+#    define OIIO_CONSTEXPR17 constexpr
+#    define OIIO_CONSTEXPR20 constexpr
+#elif (__cplusplus >= 201703L)
 #    define OIIO_CPLUSPLUS_VERSION 17
 #    define OIIO_CONSTEXPR14 constexpr
 #    define OIIO_CONSTEXPR17 constexpr
 #    define OIIO_CONSTEXPR20 /* not constexpr before C++20 */
-#elif (__cplusplus >= 201402L)
+#elif (__cplusplus >= 201402L) || (defined(_MSC_VER) && _MSC_VER >= 1914)
 #    define OIIO_CPLUSPLUS_VERSION 14
 #    define OIIO_CONSTEXPR14 constexpr
 #    define OIIO_CONSTEXPR17 /* not constexpr before C++17 */
@@ -187,11 +168,15 @@
 #endif
 
 
-/// allocates memory, equivalent of C99 type var_name[size]
-#define OIIO_ALLOCA(type, size) ((size) != 0 ? ((type*)alloca((size) * sizeof (type))) : nullptr)
+/// allocates smallish stack memory, equivalent of C99 type var_name[size]
+#if defined(__GNUC__)
+#    define OIIO_ALLOCA(type, size) ((size) != 0 ? ((type*)__builtin_alloca((size) * sizeof(type))) : nullptr)
+#else
+#    define OIIO_ALLOCA(type, size) ((size) != 0 ? ((type*)alloca((size) * sizeof(type))) : nullptr)
+#endif
 
 /// Deprecated (for namespace pollution reasons)
-#define ALLOCA(type, size) ((size) != 0 ? ((type*)alloca((size) * sizeof (type))) : nullptr)
+#define ALLOCA(type, size) OIIO_ALLOCA(type, size)
 
 
 // Define a macro that can be used for memory alignment.
@@ -204,7 +189,7 @@
 #elif defined(__INTEL_COMPILER)
 #    define OIIO_ALIGN(size) __declspec(align((size)))
 #else
-#    error "Don't know how to define OIIO_ALIGN"
+#    define OIIO_ALIGN(size) alignas(size)
 #endif
 
 // Cache line size is 64 on all modern x86 CPUs. If this changes or we
@@ -300,6 +285,8 @@
 #endif
 
 
+// OIIO_DEPRECATED before a function declaration marks it as deprecated in
+// a way that will generate compile warnings if it is called.
 #if OIIO_CPLUSPLUS_VERSION >= 14 || __has_cpp_attribute(deprecated)
 #    define OIIO_DEPRECATED(msg) [[deprecated(msg)]]
 #elif defined(__GNUC__) || defined(__clang__) || __has_attribute(deprecated)
@@ -311,7 +298,9 @@
 #endif
 
 
-// OIIO_FALLTHROUGH documents that switch statement fallthrough case.
+// OIIO_FALLTHROUGH at the end of a `case` label's statements documents that
+// he switch statement case is intentionally falling through to the code for
+// the next case.
 #if OIIO_CPLUSPLUS_VERSION >= 17 || __has_cpp_attribute(fallthrough)
 #    define OIIO_FALLTHROUGH [[fallthrough]]
 #else
@@ -319,8 +308,8 @@
 #endif
 
 
-// OIIO_NODISCARD documents functions whose return values should never be
-// ignored.
+// OIIO_NODISCARD following a function declaration documents that the
+// function's return value should never be ignored.
 #if OIIO_CPLUSPLUS_VERSION >= 17 || __has_cpp_attribute(nodiscard)
 #    define OIIO_NODISCARD [[nodiscard]]
 #else
@@ -340,13 +329,36 @@
 #endif
 
 
-// OIIO_HOSTDEVICE is used to supply the function decorators needed when
-// compiling for CUDA devices.
+// OIIO_RETURNS_NONNULL following a function declaration of a function
+// indicates that the pointer returned by the function is guaranteed to
+// never be nullptr.
+#if defined(__clang__) || defined(__GNUC__) || __has_attribute(returns_nonnull)
+#    define OIIO_RETURNS_NONNULL __attribute__((returns_nonnull))
+#else
+#    define OIIO_RETURNS_NONNULL
+#endif
+
+
+// OIIO_HOSTDEVICE is used before a function declaration to supply the
+// function decorators needed when compiling for CUDA devices.
 #ifdef __CUDACC__
 #    define OIIO_HOSTDEVICE __host__ __device__
 #else
 #    define OIIO_HOSTDEVICE
 #endif
+
+
+
+// OIIO_PRETTY_FUNCTION gives a text string of the current function
+// declaration.
+#if defined(__PRETTY_FUNCTION__)
+#    define OIIO_PRETTY_FUNCTION __PRETTY_FUNCTION__ /* gcc, clang */
+#elif defined(__FUNCSIG__)
+#    define OIIO_PRETTY_FUNCTION __FUNCSIG__ /* MS gotta be different */
+#else
+#    define OIIO_PRETTY_FUNCTION __FUNCTION__
+#endif
+
 
 
 OIIO_NAMESPACE_BEGIN
@@ -368,17 +380,17 @@ enum class endian {
 };
 
 
-/// Return true if the architecture we are running on is little endian
+/// Return true if the architecture we are running on is little endian.
 OIIO_FORCEINLINE constexpr bool
-littleendian(void)
+littleendian(void) noexcept
 {
     return endian::native == endian::little;
 }
 
 
-/// Return true if the architecture we are running on is big endian
+/// Return true if the architecture we are running on is big endian.
 OIIO_FORCEINLINE constexpr bool
-bigendian(void)
+bigendian(void) noexcept
 {
     return endian::native == endian::big;
 }
@@ -451,6 +463,21 @@ inline void aligned_delete(T* t) {
         aligned_free(t);
     }
 }
+
+
+
+#if OIIO_CPLUSPLUS_VERSION >= 14
+    using std::enable_if_t;    // Use C++14 std::enable_if_t
+#else
+    // Define enable_if_t for C++11
+    template <bool B, class T = void>
+    using enable_if_t = typename std::enable_if<B, T>::type;
+#endif
+
+// An enable_if helper to be used in template parameters which results in
+// much shorter symbols: https://godbolt.org/z/sWw4vP
+// Borrowed from fmtlib.
+#define OIIO_ENABLE_IF(...) OIIO::enable_if_t<(__VA_ARGS__), int> = 0
 
 
 OIIO_NAMESPACE_END
