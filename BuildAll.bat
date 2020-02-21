@@ -272,6 +272,16 @@ echo %time% ^| [ 7/19] Building OpenEXR...
 		%devenv% openexr\OpenEXR.sln /build Release /project INSTALL %redirect%
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
+
+    mkdir %root%build\%platform%\openexr-shared 2>nul
+    pushd %root%build\%platform%\openexr-shared
+        echo === OpenEXR (Release) ========================================================= > BUILDLOG.txt
+        cmake -Wno-dev -G %generator% -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -DPYILMBASE_ENABLE=OFF -DOPENEXR_VIEWERS_ENABLE=OFF -DOPENEXR_BUILD_UTILS=OFF -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\openexr-shared %src%\openexr %redirect%
+		%devenv% ilmbase\IlmBase.sln /build Release /project INSTALL %redirect%
+		%devenv% openexr\OpenEXR.sln /build Release /project INSTALL %redirect%
+        type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
+    popd
+
 :end_openexr
 
 REM ===============================================================================
@@ -357,7 +367,7 @@ echo %time% ^| [10/19] Building OpenShadingLanguage...
     pushd %root%build\%platform%\osl-debug
         echo === OpenShadingLanguage (Debug) =============================================== > BUILDLOG.txt
         set PATH=%root%tools\FlexBison\bin;%root%stage\%platform%\llvm-debug\bin;%OSL_PATH_SAVE%
-        cmake -Wno-dev -G %generator% -DCMAKE_BUILD_TYPE=Debug -DOSL_BUILD_PLUGINS=OFF -DOSL_BUILD_TESTS=OFF -DOSL_BUILD_SHADERS=OFF -DBOOST_ROOT=%boost_root% -DBoost_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=%qt_root_path% -DBUILDSTATIC=ON -DLINKSTATIC=ON -DENABLERTTI=ON -DLLVM_STATIC=ON -DUSE_SIMD=sse2 -DUSE_PARTIO=OFF -DILMBASE_ROOT_DIR=%root%stage\%platform%\ilmbase-debug -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-debug -DOPENIMAGEIO_ROOT_DIR=%root%stage\%platform%\oiio-debug -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-debug\lib\zlibstaticd.lib -DEXTRA_CPP_ARGS="/DOIIO_STATIC_BUILD /DTINYFORMAT_ALLOW_WCHAR_STRINGS" -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\osl-debug %src%\osl %redirect%
+        cmake -Wno-dev -G %generator% -DCMAKE_BUILD_TYPE=Debug -DOSL_BUILD_PLUGINS=OFF -DOSL_BUILD_TESTS=OFF -DOSL_BUILD_SHADERS=OFF -DBOOST_ROOT=%boost_root% -DBoost_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=%qt_root_path% -DBUILDSTATIC=ON -DLINKSTATIC=ON -DENABLERTTI=ON -DLLVM_STATIC=ON -DUSE_SIMD=sse2 -DUSE_PARTIO=OFF -DILMBASE_ROOT_DIR=%root%stage\%platform%\openexr-debug -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-debug -DOPENIMAGEIO_ROOT_DIR=%root%stage\%platform%\oiio-debug -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-debug\lib\zlibstaticd.lib -DEXTRA_CPP_ARGS="/DOIIO_STATIC_BUILD /DTINYFORMAT_ALLOW_WCHAR_STRINGS" -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\osl-debug %src%\osl %redirect%
 		%devenv% osl.sln /build Debug /project INSTALL %redirect%
         copy src\liboslcomp\oslcomp.dir\Debug\*.pdb %root%stage\%platform%\osl-debug\lib %redirect%
         copy src\liboslexec\oslexec.dir\Debug\*.pdb %root%stage\%platform%\osl-debug\lib %redirect%
@@ -370,7 +380,7 @@ echo %time% ^| [10/19] Building OpenShadingLanguage...
     pushd %root%build\%platform%\osl-release
         echo === OpenShadingLanguage (Release) ============================================= > BUILDLOG.txt
         set PATH=%root%tools\FlexBison\bin;%root%stage\%platform%\llvm-release\bin;%OSL_PATH_SAVE%
-        cmake -Wno-dev -G %generator% -DCMAKE_BUILD_TYPE=Release -DOSL_BUILD_PLUGINS=OFF -DOSL_BUILD_TESTS=OFF -DOSL_BUILD_SHADERS=OFF -DBOOST_ROOT=%boost_root% -DBoost_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=%qt_root_path% -DBUILDSTATIC=ON -DLINKSTATIC=ON -DENABLERTTI=ON -DLLVM_STATIC=ON -DUSE_SIMD=sse2 -DUSE_PARTIO=OFF -DILMBASE_ROOT_DIR=%root%stage\%platform%\ilmbase-release -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-release -DOPENIMAGEIO_ROOT_DIR=%root%stage\%platform%\oiio-release -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DEXTRA_CPP_ARGS="/DOIIO_STATIC_BUILD /DTINYFORMAT_ALLOW_WCHAR_STRINGS" -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\osl-release %src%\osl %redirect%
+        cmake -Wno-dev -G %generator% -DCMAKE_BUILD_TYPE=Release -DOSL_BUILD_PLUGINS=OFF -DOSL_BUILD_TESTS=OFF -DOSL_BUILD_SHADERS=OFF -DBOOST_ROOT=%boost_root% -DBoost_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=%qt_root_path% -DBUILDSTATIC=ON -DLINKSTATIC=ON -DENABLERTTI=ON -DLLVM_STATIC=ON -DUSE_SIMD=sse2 -DUSE_PARTIO=OFF -DILMBASE_ROOT_DIR=%root%stage\%platform%\openexr-release -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-release -DOPENIMAGEIO_ROOT_DIR=%root%stage\%platform%\oiio-release -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DEXTRA_CPP_ARGS="/DOIIO_STATIC_BUILD /DTINYFORMAT_ALLOW_WCHAR_STRINGS" -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\osl-release %src%\osl %redirect%
         %devenv% osl.sln /build Release /project INSTALL %redirect%
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
@@ -379,7 +389,7 @@ echo %time% ^| [10/19] Building OpenShadingLanguage...
     pushd %root%build\%platform%\osl-shared
         echo === OpenShadingLanguage (Shared) ============================================= > BUILDLOG.txt
         set PATH=%root%tools\FlexBison\bin;%root%stage\%platform%\llvm-release\bin;%OSL_PATH_SAVE%
-        cmake -Wno-dev -G %generator% -DCMAKE_BUILD_TYPE=Release -DOSL_BUILD_PLUGINS=OFF -DOSL_BUILD_TESTS=OFF -DOSL_BUILD_SHADERS=OFF -DBOOST_ROOT=%boost_root% -DBoost_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=%qt_root_path% -DBUILDSTATIC=OFF -DLINKSTATIC=ON -DENABLERTTI=ON -DLLVM_STATIC=ON -DUSE_SIMD=sse2 -DUSE_PARTIO=OFF -DILMBASE_ROOT_DIR=%root%stage\%platform%\ilmbase-release -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-release -DOPENIMAGEIO_ROOT_DIR=%root%stage\%platform%\oiio-shared -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DEXTRA_CPP_ARGS="/DOIIO_STATIC_BUILD /DTINYFORMAT_ALLOW_WCHAR_STRINGS" -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\osl-shared %src%\osl %redirect%
+        cmake -Wno-dev -G %generator% -DCMAKE_BUILD_TYPE=Release -DOSL_BUILD_PLUGINS=OFF -DOSL_BUILD_TESTS=OFF -DOSL_BUILD_SHADERS=OFF -DBOOST_ROOT=%boost_root% -DBoost_USE_STATIC_LIBS=ON -DCMAKE_PREFIX_PATH=%qt_root_path% -DBUILDSTATIC=OFF -DLINKSTATIC=ON -DENABLERTTI=ON -DLLVM_STATIC=ON -DUSE_SIMD=sse2 -DUSE_PARTIO=OFF -DILMBASE_ROOT_DIR=%root%stage\%platform%\openexr-shared -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-shared -DOPENIMAGEIO_ROOT_DIR=%root%stage\%platform%\oiio-shared -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DEXTRA_CPP_ARGS="/DTINYFORMAT_ALLOW_WCHAR_STRINGS" -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\osl-shared %src%\osl %redirect%
         %devenv% osl.sln /build Release /project INSTALL %redirect%
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
@@ -576,7 +586,7 @@ echo %time% ^| [17/19] Building OpenVDB...
     mkdir %root%build\%platform%\openvdb-debug 2>nul
     pushd %root%build\%platform%\openvdb-debug
         echo === OpenVDB (Debug) ================================================== > BUILDLOG.txt
-        cmake -G %generator% -DCMAKE_BUILD_TYPE=Debug -DOPENVDB_CORE_SHARED=OFF -DOPENVDB_CORE_STATIC=ON -DUSE_EXR=ON -DOPENVDB_BUILD_VDB_PRINT=OFF -DBOOST_ROOT=%boost_root% -DTBB_ROOT=%root_fwd_slashes%stage/%platform%/tbb-debug -DILMBASE_ROOT_DIR=%root%stage\%platform%\ilmbase-debug -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-debug -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-debug\lib\zlibstaticd.lib -DBlosc_INCLUDE_DIR=%root%stage\%platform%\blosc-debug\include -DBlosc_LIBRARY=%root%stage\%platform%\blosc-debug\lib\libblosc.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\openvdb-debug %src%\openvdb %redirect%
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Debug -DOPENVDB_CORE_SHARED=OFF -DOPENVDB_CORE_STATIC=ON -DUSE_EXR=ON -DOPENVDB_BUILD_VDB_PRINT=OFF -DBOOST_ROOT=%boost_root% -DTBB_ROOT=%root_fwd_slashes%stage/%platform%/tbb-debug -DILMBASE_ROOT_DIR=%root%stage\%platform%\openexr-debug -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-debug -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-debug\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-debug\lib\zlibstaticd.lib -DBlosc_INCLUDE_DIR=%root%stage\%platform%\blosc-debug\include -DBlosc_LIBRARY=%root%stage\%platform%\blosc-debug\lib\libblosc.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\openvdb-debug %src%\openvdb %redirect%
         %devenv% OpenVDB.sln /build Debug /project INSTALL %redirect%
         copy openvdb\openvdb_static.dir\Debug\*.pdb %root%stage\%platform%\openvdb-debug\lib %redirect%
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
@@ -585,7 +595,7 @@ echo %time% ^| [17/19] Building OpenVDB...
     mkdir %root%build\%platform%\openvdb-release 2>nul
     pushd %root%build\%platform%\openvdb-release
         echo === OpenVDB (Release) ================================================ > BUILDLOG.txt
-        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DOPENVDB_CORE_SHARED=OFF -DOPENVDB_CORE_STATIC=ON -DUSE_EXR=ON -DOPENVDB_BUILD_VDB_PRINT=OFF -DBOOST_ROOT=%boost_root% -DTBB_ROOT=%root_fwd_slashes%stage/%platform%/tbb-release -DILMBASE_ROOT_DIR=%root%stage\%platform%\ilmbase-release -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-release -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DBlosc_INCLUDE_DIR=%root%stage\%platform%\blosc-release\include -DBlosc_LIBRARY=%root%stage\%platform%\blosc-release\lib\libblosc.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\openvdb-release %src%\openvdb %redirect%
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DOPENVDB_CORE_SHARED=OFF -DOPENVDB_CORE_STATIC=ON -DUSE_EXR=ON -DOPENVDB_BUILD_VDB_PRINT=OFF -DBOOST_ROOT=%boost_root% -DTBB_ROOT=%root_fwd_slashes%stage/%platform%/tbb-release -DILMBASE_ROOT_DIR=%root%stage\%platform%\openexr-release -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-release -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DBlosc_INCLUDE_DIR=%root%stage\%platform%\blosc-release\include -DBlosc_LIBRARY=%root%stage\%platform%\blosc-release\lib\libblosc.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\openvdb-release %src%\openvdb %redirect%
         %devenv% OpenVDB.sln /build Release /project INSTALL %redirect%
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
@@ -593,7 +603,7 @@ echo %time% ^| [17/19] Building OpenVDB...
     mkdir %root%build\%platform%\openvdb-shared 2>nul
     pushd %root%build\%platform%\openvdb-shared
         echo === OpenVDB (Release) ================================================ > BUILDLOG.txt
-        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DOPENVDB_CORE_SHARED=ON -DOPENVDB_CORE_STATIC=OFF -DUSE_EXR=ON -DOPENVDB_BUILD_VDB_PRINT=OFF -DBOOST_ROOT=%boost_root% -DTBB_ROOT=%root_fwd_slashes%stage/%platform%/tbb-release -DILMBASE_ROOT_DIR=%root%stage\%platform%\ilmbase-release -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-release -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DBlosc_INCLUDE_DIR=%root%stage\%platform%\blosc-release\include -DBlosc_LIBRARY=%root%stage\%platform%\blosc-release\lib\libblosc.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\openvdb-shared %src%\openvdb %redirect%
+        cmake -G %generator% -DCMAKE_BUILD_TYPE=Release -DOPENVDB_CORE_SHARED=ON -DOPENVDB_CORE_STATIC=OFF -DUSE_EXR=ON -DOPENVDB_BUILD_VDB_PRINT=OFF -DBOOST_ROOT=%boost_root% -DTBB_ROOT=%root_fwd_slashes%stage/%platform%/tbb-shared -DILMBASE_ROOT_DIR=%root%stage\%platform%\openexr-shared -DOPENEXR_ROOT_DIR=%root%stage\%platform%\openexr-shared -DZLIB_INCLUDE_DIR=%root%stage\%platform%\zlib-release\include -DZLIB_LIBRARY=%root%stage\%platform%\zlib-release\lib\zlibstatic.lib -DBlosc_INCLUDE_DIR=%root%stage\%platform%\blosc-release\include -DBlosc_LIBRARY=%root%stage\%platform%\blosc-release\lib\libblosc.lib -DCMAKE_INSTALL_PREFIX=%root%stage\%platform%\openvdb-shared %src%\openvdb %redirect%
         %devenv% OpenVDB.sln /build Release /project INSTALL %redirect%
         type BUILDLOG.txt >> %root%build\%platform%\BUILDLOG.txt
     popd
