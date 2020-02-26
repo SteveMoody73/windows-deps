@@ -26,6 +26,7 @@ colorspaces:
     
     EXPECTED_LUT = """CSPLUTV100
 3D
+
 BEGIN METADATA
 this is some metadata!
 END METADATA
@@ -79,6 +80,6 @@ END METADATA
         self.assertEqual(2, bakee.getCubeSize())
         output = bakee.bake()
         self.assertEqual(self.EXPECTED_LUT, output)
-        self.assertEqual(5, bakee.getNumFormats())
+        self.assertEqual(6, bakee.getNumFormats())
         self.assertEqual("cinespace", bakee.getFormatNameByIndex(2))
         self.assertEqual("3dl", bakee.getFormatExtensionByIndex(1))

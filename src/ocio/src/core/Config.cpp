@@ -40,6 +40,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "HashUtils.h"
 #include "Logging.h"
 #include "LookParse.h"
+#include "Display.h"
 #include "MathUtils.h"
 #include "Mutex.h"
 #include "OpBuilders.h"
@@ -49,6 +50,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "PrivateTypes.h"
 #include "pystring/pystring.h"
 #include "OCIOYaml.h"
+#include "Platform.h"
 
 OCIO_NAMESPACE_ENTER
 {
@@ -131,20 +133,21 @@ OCIO_NAMESPACE_ENTER
     {
     
     // Environment
-    std::string LookupEnvironment(const StringMap & env, const std::string & name)
+    const char* LookupEnvironment(const StringMap & env,
+                                        const std::string & name)
     {
         StringMap::const_iterator iter = env.find(name);
         if(iter == env.end()) return "";
-        return iter->second;
+        return iter->second.c_str();
     }
     
     // Roles
     // (lower case role name: colorspace name)
-    std::string LookupRole(const StringMap & roles, const std::string & rolename)
+    const char* LookupRole(const StringMap & roles, const std::string & rolename)
     {
         StringMap::const_iterator iter = roles.find(pystring::lower(rolename));
         if(iter == roles.end()) return "";
-        return iter->second;
+        return iter->second.c_str();
     }
     
     
@@ -208,7 +211,6 @@ OCIO_NAMESPACE_ENTER
         if(csname.empty()) return false;
         
         std::string csnamelower = pystring::lower(csname);
-        
         for(unsigned int i = 0; i < colorspaces.size(); ++i)
         {
             if(csnamelower == pystring::lower(colorspaces[i]->getName()))
@@ -220,184 +222,7 @@ OCIO_NAMESPACE_ENTER
         
         return false;
     }
-    
-    
-    // Displays
-    struct View
-    {
-        std::string name;
-        std::string colorspace;
-        std::string looks;
         
-        View() { }
-        
-        View(const std::string & name_,
-             const std::string & colorspace_,
-             const std::string & looksList_) :
-                name(name_),
-                colorspace(colorspace_),
-                looks(looksList_)
-        { }
-    };
-    
-    typedef std::vector<View> ViewVec;
-    typedef std::map<std::string, ViewVec> DisplayMap;  // (display name : ViewVec)
-    
-    void operator >> (const YAML::Node& node, View& v)
-    {
-        if(node.Tag() != "View")
-            return;
-        
-        std::string key, stringval;
-        
-        for (YAML::Iterator iter = node.begin();
-             iter != node.end();
-             ++iter)
-        {
-            iter.first() >> key;
-            
-            if(key == "name")
-            {
-                if (iter.second().Type() != YAML::NodeType::Null && 
-                    iter.second().Read<std::string>(stringval))
-                    v.name = stringval;
-            }
-            else if(key == "colorspace")
-            {
-                if (iter.second().Type() != YAML::NodeType::Null && 
-                    iter.second().Read<std::string>(stringval))
-                    v.colorspace = stringval;
-            }
-            else if(key == "looks" || key == "look")
-            {
-                if (iter.second().Type() != YAML::NodeType::Null && 
-                    iter.second().Read<std::string>(stringval))
-                    v.looks = stringval;
-            }
-            else
-            {
-                LogUnknownKeyWarning(node.Tag(), iter.first());
-            }
-        }
-        
-        if(v.name.empty())
-        {
-            throw Exception("View does not specify 'name'.");
-        }
-        if(v.colorspace.empty())
-        {
-            std::ostringstream os;
-            os << "View '" << v.name << "' ";
-            os << "does not specify colorspace.";
-            throw Exception(os.str().c_str());
-        }
-    }
-    
-    YAML::Emitter& operator << (YAML::Emitter& out, View view)
-    {
-        out << YAML::VerbatimTag("View");
-        out << YAML::Flow;
-        out << YAML::BeginMap;
-        out << YAML::Key << "name" << YAML::Value << view.name;
-        out << YAML::Key << "colorspace" << YAML::Value << view.colorspace;
-        if(!view.looks.empty()) out << YAML::Key << "looks" << YAML::Value << view.looks;
-        out << YAML::EndMap;
-        return out;
-    }
-    
-    DisplayMap::iterator find_display(DisplayMap & displays, const std::string & display)
-    {
-        for(DisplayMap::iterator iter = displays.begin();
-            iter != displays.end();
-            ++iter)
-        {
-            if(StrEqualsCaseIgnore(display, iter->first)) return iter;
-        }
-        return displays.end();
-    }
-    
-    DisplayMap::const_iterator find_display_const(const DisplayMap & displays, const std::string & display)
-    {
-        for(DisplayMap::const_iterator iter = displays.begin();
-            iter != displays.end();
-            ++iter)
-        {
-            if(StrEqualsCaseIgnore(display, iter->first)) return iter;
-        }
-        return displays.end();
-    }
-    
-    int find_view(const ViewVec & vec, const std::string & name)
-    {
-        for(unsigned int i=0; i<vec.size(); ++i)
-        {
-            if(StrEqualsCaseIgnore(name, vec[i].name)) return i;
-        }
-        return -1;
-    }
-    
-    void AddDisplay(DisplayMap & displays,
-                    const std::string & display,
-                    const std::string & view,
-                    const std::string & colorspace,
-                    const std::string & looks)
-    {
-        DisplayMap::iterator iter = find_display(displays, display);
-        if(iter == displays.end())
-        {
-            ViewVec views;
-            views.push_back( View(view, colorspace, looks) );
-            displays[display] = views;
-        }
-        else
-        {
-            ViewVec & views = iter->second;
-            int index = find_view(views, view);
-            if(index<0)
-            {
-                views.push_back( View(view, colorspace, looks) );
-            }
-            else
-            {
-                views[index].colorspace = colorspace;
-                views[index].looks = looks;
-            }
-        }
-    }
-    
-    void ComputeDisplays(StringVec & displayCache,
-                         const DisplayMap & displays,
-                         const StringVec & activeDisplays,
-                         const StringVec & activeDisplaysEnvOverride)
-    {
-        displayCache.clear();
-        
-        StringVec displayMasterList;
-        for(DisplayMap::const_iterator iter = displays.begin();
-            iter != displays.end();
-            ++iter)
-        {
-            displayMasterList.push_back(iter->first);
-        }
-        
-        // Apply the env override if it's not empty.
-        if(!activeDisplaysEnvOverride.empty())
-        {
-            displayCache = IntersectStringVecsCaseIgnore(displayMasterList, activeDisplaysEnvOverride);
-            if(!displayCache.empty()) return;
-        }
-        // Otherwise, aApply the active displays if it's not empty.
-        else if(!activeDisplays.empty())
-        {
-            displayCache = IntersectStringVecsCaseIgnore(displayMasterList, activeDisplays);
-            if(!displayCache.empty()) return;
-        }
-        
-        displayCache = displayMasterList;
-    }
-    
-    
-    
     } // namespace
     
     class Config::Impl
@@ -431,16 +256,26 @@ OCIO_NAMESPACE_ENTER
         mutable StringMap cacheids_;
         mutable std::string cacheidnocontext_;
         
+        OCIOYaml io_;
+        
         Impl() : 
             context_(Context::Create()),
             strictParsing_(true),
             sanity_(SANITY_UNKNOWN)
         {
-            char* activeDisplays = std::getenv(OCIO_ACTIVE_DISPLAYS_ENVVAR);
-            SplitStringEnvStyle(activeDisplaysEnvOverride_, activeDisplays);
+            std::string activeDisplays;
+            Platform::getenv(OCIO_ACTIVE_DISPLAYS_ENVVAR, activeDisplays);
+            activeDisplays = pystring::strip(activeDisplays);
+            if (!activeDisplays.empty()) {
+                SplitStringEnvStyle(activeDisplaysEnvOverride_, activeDisplays.c_str());
+            }
             
-            char * activeViews = std::getenv(OCIO_ACTIVE_VIEWS_ENVVAR);
-            SplitStringEnvStyle(activeViewsEnvOverride_, activeViews);
+            std::string activeViews;
+            Platform::getenv(OCIO_ACTIVE_VIEWS_ENVVAR, activeViews);
+            activeViews = pystring::strip(activeViews);
+            if (!activeViews.empty()) {
+                SplitStringEnvStyle(activeViewsEnvOverride_, activeViews.c_str());
+            }
             
             defaultLumaCoefs_.resize(3);
             defaultLumaCoefs_[0] = DEFAULT_LUMA_COEFF_R;
@@ -455,50 +290,51 @@ OCIO_NAMESPACE_ENTER
         
         Impl& operator= (const Impl & rhs)
         {
-            env_ = rhs.env_;
-            context_ = rhs.context_->createEditableCopy();
-            description_ = rhs.description_;
-            
-            // Deep copy the colorspaces
-            colorspaces_.clear();
-            colorspaces_.reserve(rhs.colorspaces_.size());
-            for(unsigned int i=0; i<rhs.colorspaces_.size(); ++i)
+            if(this!=&rhs)
             {
-                colorspaces_.push_back(rhs.colorspaces_[i]->createEditableCopy());
+                env_ = rhs.env_;
+                context_ = rhs.context_->createEditableCopy();
+                description_ = rhs.description_;
+                
+                // Deep copy the colorspaces
+                colorspaces_.clear();
+                colorspaces_.reserve(rhs.colorspaces_.size());
+                for(unsigned int i=0; i<rhs.colorspaces_.size(); ++i)
+                {
+                    colorspaces_.push_back(rhs.colorspaces_[i]->createEditableCopy());
+                }
+                
+                // Deep copy the looks
+                looksList_.clear();
+                looksList_.reserve(rhs.looksList_.size());
+                for(unsigned int i=0; i<rhs.looksList_.size(); ++i)
+                {
+                    looksList_.push_back(rhs.looksList_[i]->createEditableCopy());
+                }
+                
+                // Assignment operator will suffice for these
+                roles_ = rhs.roles_;
+                
+                displays_ = rhs.displays_;
+                activeDisplays_ = rhs.activeDisplays_;
+                activeViews_ = rhs.activeViews_;
+                activeViewsEnvOverride_ = rhs.activeViewsEnvOverride_;
+                activeDisplaysEnvOverride_ = rhs.activeDisplaysEnvOverride_;
+                activeDisplaysStr_ = rhs.activeDisplaysStr_;
+                displayCache_ = rhs.displayCache_;
+                
+                defaultLumaCoefs_ = rhs.defaultLumaCoefs_;
+                strictParsing_ = rhs.strictParsing_;
+                
+                sanity_ = rhs.sanity_;
+                sanitytext_ = rhs.sanitytext_;
+                
+                cacheids_ = rhs.cacheids_;
+                cacheidnocontext_ = cacheidnocontext_;
             }
-            
-            // Deep copy the looks
-            looksList_.clear();
-            looksList_.reserve(rhs.looksList_.size());
-            for(unsigned int i=0; i<rhs.looksList_.size(); ++i)
-            {
-                looksList_.push_back(rhs.looksList_[i]->createEditableCopy());
-            }
-            
-            // Assignment operator will suffice for these
-            roles_ = rhs.roles_;
-            
-            displays_ = rhs.displays_;
-            activeDisplays_ = rhs.activeDisplays_;
-            activeViews_ = rhs.activeViews_;
-            activeViewsEnvOverride_ = rhs.activeViewsEnvOverride_;
-            activeDisplaysEnvOverride_ = rhs.activeDisplaysEnvOverride_;
-            activeDisplaysStr_ = rhs.activeDisplaysStr_;
-            displayCache_ = rhs.displayCache_;
-            
-            defaultLumaCoefs_ = rhs.defaultLumaCoefs_;
-            strictParsing_ = rhs.strictParsing_;
-            
-            sanity_ = rhs.sanity_;
-            sanitytext_ = rhs.sanitytext_;
-            
-            cacheids_ = rhs.cacheids_;
-            cacheidnocontext_ = cacheidnocontext_;
             return *this;
         }
-        
-        void load(std::istream & istream, const char * name);
-        
+
         // Any time you modify the state of the config, you must call this
         // to reset internal cache states.  You also should do this in a
         // thread safe manner by acquiring the cacheidMutex_;
@@ -524,8 +360,9 @@ OCIO_NAMESPACE_ENTER
     
     ConstConfigRcPtr Config::CreateFromEnv()
     {
-        char* file = std::getenv(OCIO_CONFIG_ENVVAR);
-        if(file) return CreateFromFile(file);
+        std::string file;
+        Platform::getenv(OCIO_CONFIG_ENVVAR, file);
+        if(!file.empty()) return CreateFromFile(file.c_str());
         
         std::ostringstream os;
         os << "Color management disabled. ";
@@ -536,7 +373,7 @@ OCIO_NAMESPACE_ENTER
         istream.str(INTERNAL_RAW_PROFILE);
         
         ConfigRcPtr config = Config::Create();
-        config->getImpl()->load(istream, "");
+        config->getImpl()->io_.open(istream, config);
         return config;
     }
     
@@ -551,14 +388,14 @@ OCIO_NAMESPACE_ENTER
         }
         
         ConfigRcPtr config = Config::Create();
-        config->getImpl()->load(istream, filename);
+        config->getImpl()->io_.open(istream, config, filename);
         return config;
     }
     
     ConstConfigRcPtr Config::CreateFromStream(std::istream & istream)
     {
         ConfigRcPtr config = Config::Create();
-        config->getImpl()->load(istream, "");
+        config->getImpl()->io_.open(istream, config);
         return config;
     }
     
@@ -881,13 +718,34 @@ OCIO_NAMESPACE_ENTER
     
     const char * Config::getEnvironmentVarDefault(const char * name) const
     {
-        return LookupEnvironment(getImpl()->env_, name).c_str();
+        return LookupEnvironment(getImpl()->env_, name);
     }
     
     void Config::clearEnvironmentVars()
     {
         getImpl()->env_.clear();
         getImpl()->context_->clearStringVars();
+        
+        AutoMutex lock(getImpl()->cacheidMutex_);
+        getImpl()->resetCacheIDs();
+    }
+    
+    void Config::setEnvironmentMode(EnvironmentMode mode)
+    {
+        getImpl()->context_->setEnvironmentMode(mode);
+        
+        AutoMutex lock(getImpl()->cacheidMutex_);
+        getImpl()->resetCacheIDs();
+    }
+    
+    EnvironmentMode Config::getEnvironmentMode() const
+    {
+        return getImpl()->context_->getEnvironmentMode();
+    }
+    
+    void Config::loadEnvironment()
+    {
+        getImpl()->context_->loadEnvironment();
         
         AutoMutex lock(getImpl()->cacheidMutex_);
         getImpl()->resetCacheIDs();
@@ -951,7 +809,7 @@ OCIO_NAMESPACE_ENTER
     int Config::getIndexForColorSpace(const char * name) const
     {
         int csindex = -1;
-        
+
         // Check to see if the name is a color space
         if( FindColorSpaceIndex(&csindex, getImpl()->colorspaces_, name) )
         {
@@ -959,7 +817,7 @@ OCIO_NAMESPACE_ENTER
         }
         
         // Check to see if the name is a role
-        std::string csname = LookupRole(getImpl()->roles_, name);
+        const char* csname = LookupRole(getImpl()->roles_, name);
         if( FindColorSpaceIndex(&csindex, getImpl()->colorspaces_, csname) )
         {
             return csindex;
@@ -1059,8 +917,8 @@ OCIO_NAMESPACE_ENTER
         if(!getImpl()->strictParsing_)
         {
             // Is a default role defined?
-            std::string csname = LookupRole(getImpl()->roles_, ROLE_DEFAULT);
-            if(!csname.empty())
+            const char* csname = LookupRole(getImpl()->roles_, ROLE_DEFAULT);
+            if(csname && *csname)
             {
                 int csindex = -1;
                 if( FindColorSpaceIndex(&csindex, getImpl()->colorspaces_, csname) )
@@ -1117,7 +975,8 @@ OCIO_NAMESPACE_ENTER
     
     bool Config::hasRole(const char * role) const
     {
-        return LookupRole(getImpl()->roles_, role) == "" ? false : true;
+        const char* rname = LookupRole(getImpl()->roles_, role);
+        return  rname && *rname;
     }
     
     const char * Config::getRoleName(int index) const
@@ -1647,306 +1506,13 @@ OCIO_NAMESPACE_ENTER
     {
         try
         {
-            YAML::Emitter out;
-            out << YAML::Block;
-            out << YAML::BeginMap;
-            out << YAML::Key << "ocio_profile_version" << YAML::Value << 1;
-            out << YAML::Newline;
-            if(getImpl()->env_.size() > 0) {
-                out << YAML::Key << "environment";
-                out << YAML::Value << getImpl()->env_;
-                out << YAML::Newline;
-            }
-            out << YAML::Key << "search_path" << YAML::Value << getImpl()->context_->getSearchPath();
-            out << YAML::Key << "strictparsing" << YAML::Value << getImpl()->strictParsing_;
-            out << YAML::Key << "luma" << YAML::Value << YAML::Flow << getImpl()->defaultLumaCoefs_;
-            
-            if(getImpl()->description_ != "")
-            {
-                out << YAML::Newline;
-                out << YAML::Key << "description";
-                out << YAML::Value << getImpl()->description_;
-            }
-            
-            // Roles
-            out << YAML::Newline;
-            out << YAML::Key << "roles";
-            out << YAML::Value << getImpl()->roles_;
-            
-            // Displays
-            out << YAML::Newline;
-            out << YAML::Key << "displays";
-            out << YAML::Value << getImpl()->displays_;
-            out << YAML::Newline;
-            out << YAML::Key << "active_displays";
-            out << YAML::Value << YAML::Flow << getImpl()->activeDisplays_;
-            out << YAML::Key << "active_views";
-            out << YAML::Value << YAML::Flow << getImpl()->activeViews_;
-            
-            // Looks
-            if(!getImpl()->looksList_.empty())
-            {
-                out << YAML::Newline;
-                out << YAML::Key << "looks";
-                out << YAML::Value << getImpl()->looksList_;
-            }
-            
-            // ColorSpaces
-            {
-                out << YAML::Newline;
-                out << YAML::Key << "colorspaces";
-                out << YAML::Value << getImpl()->colorspaces_;
-            }
-            
-            out << YAML::EndMap;
-            
-            os << out.c_str();
+            getImpl()->io_.write(os, this);
         }
         catch( const std::exception & e)
         {
             std::ostringstream error;
             error << "Error building YAML: " << e.what();
             throw Exception(error.str().c_str());
-        }
-    }
-    
-    void Config::Impl::load(std::istream & istream, const char * filename)
-    {
-        try
-        {
-            YAML::Parser parser(istream);
-            YAML::Node node;
-            parser.GetNextDocument(node);
-            
-            // check profile version
-            int profile_version = 0;
-            if(node.FindValue("ocio_profile_version") == NULL)
-            {
-                std::ostringstream os;
-                os << "The specified file ";
-                os << "does not appear to be an OCIO configuration.";
-                throw Exception (os.str().c_str());
-            }
-            
-            node["ocio_profile_version"] >> profile_version;
-            if(profile_version > 1)
-            {
-                std::ostringstream os;
-                os << "This .ocio config ";
-                if(filename && *filename)
-                {
-                    os << " '" << filename << "' ";
-                }
-                os << "is version " << profile_version << ". ";
-                os << "This version of the OpenColorIO library (" << OCIO_VERSION ") ";
-                os << "is not known to be able to load this profile. ";
-                os << "An attempt will be made, but there are no guarantees that the ";
-                os << "results will be accurate. Continue at your own risk.";
-                LogWarning(os.str());
-            }
-            
-            
-            std::string key, stringval;
-            bool boolval = false;
-            EnvironmentMode mode = ENV_ENVIRONMENT_LOAD_ALL;
-            
-            for (YAML::Iterator iter = node.begin();
-                 iter != node.end();
-                 ++iter)
-            {
-                iter.first() >> key;
-                
-                if(key == "ocio_profile_version") { } // Already handled above.
-                else if(key == "environment")
-                {
-                    mode = ENV_ENVIRONMENT_LOAD_PREDEFINED;
-                    const YAML::Node& environment = iter.second();
-                    if(environment.Type() != YAML::NodeType::Map)
-                    {
-                        std::ostringstream os;
-                        os << "'environment' field needs to be a (name: key) map.";
-                        throw Exception(os.str().c_str());
-                    }
-                    for (YAML::Iterator it  = environment.begin();
-                                        it != environment.end(); ++it)
-                    {
-                        std::string k, v;
-                        it.first() >> k;
-                        it.second() >> v;
-                        env_[k] = v;
-                        context_->setStringVar(k.c_str(), v.c_str());
-                    }
-                }
-                else if(key == "search_path" || key == "resource_path")
-                {
-                    if (iter.second().Type() != YAML::NodeType::Null && 
-                        iter.second().Read<std::string>(stringval))
-                        context_->setSearchPath(stringval.c_str());
-                }
-                else if(key == "strictparsing")
-                {
-                    if (iter.second().Type() != YAML::NodeType::Null && 
-                        iter.second().Read<bool>(boolval))
-                        strictParsing_ = boolval;
-                }
-                else if(key == "description")
-                {
-                    if (iter.second().Type() != YAML::NodeType::Null && 
-                        iter.second().Read<std::string>(stringval))
-                        description_ = stringval;
-                }
-                else if(key == "luma")
-                {
-                    std::vector<float> val;
-                    if (iter.second().Type() != YAML::NodeType::Null)
-                    {
-                        iter.second() >> val;
-                        if(val.size() != 3)
-                        {
-                            std::ostringstream os;
-                            os << "'luma' field must be 3 ";
-                            os << "floats. Found '" << val.size() << "'.";
-                            throw Exception(os.str().c_str());
-                        }
-                        defaultLumaCoefs_ = val;
-                    }
-                }
-                else if(key == "roles")
-                {
-                    const YAML::Node& roles = iter.second();
-                    if(roles.Type() != YAML::NodeType::Map)
-                    {
-                        std::ostringstream os;
-                        os << "'roles' field needs to be a (name: key) map.";
-                        throw Exception(os.str().c_str());
-                    }
-                    for (YAML::Iterator it  = roles.begin();
-                                        it != roles.end(); ++it)
-                    {
-                        std::string k, v;
-                        it.first() >> k;
-                        it.second() >> v;
-                        roles_[pystring::lower(k)] = v;
-                    }
-                }
-                else if(key == "displays")
-                {
-                    if (iter.second().Type() != YAML::NodeType::Null)
-                    {
-                        iter.second() >> displays_;
-                    }
-                }
-                else if(key == "active_displays")
-                {
-                    if (iter.second().Type() != YAML::NodeType::Null)
-                    {
-                        iter.second() >> activeDisplays_;
-                    }
-                }
-                else if(key == "active_views")
-                {
-                    if (iter.second().Type() != YAML::NodeType::Null)
-                    {
-                        iter.second() >> activeViews_;
-                    }
-                }
-                else if(key == "colorspaces")
-                {
-                    const YAML::Node& colorspaces = iter.second();
-                    
-                    if(colorspaces.Type() != YAML::NodeType::Sequence)
-                    {
-                        std::ostringstream os;
-                        os << "'colorspaces' field needs to be a (- !<ColorSpace>) list.";
-                        throw Exception(os.str().c_str());
-                    }
-                    
-                    for(unsigned i = 0; i < colorspaces.size(); ++i)
-                    {
-                        if(colorspaces[i].Tag() == "ColorSpace")
-                        {
-                            ColorSpaceRcPtr cs = ColorSpace::Create();
-                            colorspaces[i] >> cs;
-                            colorspaces_.push_back( cs );
-                        }
-                        else
-                        {
-                            std::ostringstream os;
-                            os << "Unknown element found in colorspaces:";
-                            os << colorspaces[i].Tag() << ". Only ColorSpace(s)";
-                            os << " currently handled.";
-                            LogWarning(os.str());
-                        }
-                    }
-                }
-                else if(key == "looks")
-                {
-                    const YAML::Node& looks = iter.second();
-                    
-                    if(looks.Type() != YAML::NodeType::Sequence)
-                    {
-                        std::ostringstream os;
-                        os << "'looks' field needs to be a (- !<Look>) list.";
-                        throw Exception(os.str().c_str());
-                    }
-                    
-                    for(unsigned i = 0; i < looks.size(); ++i)
-                    {
-                        if(looks[i].Tag() == "Look")
-                        {
-                            LookRcPtr look = Look::Create();
-                            looks[i] >> look;
-                            looksList_.push_back( look );
-                        }
-                        else
-                        {
-                            std::ostringstream os;
-                            os << "Unknown element found in looks:";
-                            os << looks[i].Tag() << ". Only Look(s)";
-                            os << " currently handled.";
-                            LogWarning(os.str());
-                        }
-                    }
-                }
-                else
-                {
-                    LogUnknownKeyWarning("profile", iter.first());
-                }
-            }
-            
-            if(filename)
-            {
-                std::string realfilename = pystring::os::path::abspath(filename);
-                std::string configrootdir = pystring::os::path::dirname(realfilename);
-                context_->setWorkingDir(configrootdir.c_str());
-            }
-            
-            context_->setEnvironmentMode(mode);
-            context_->loadEnvironment();
-            
-            if(mode == ENV_ENVIRONMENT_LOAD_ALL)
-            {
-                std::ostringstream os;
-                os << "This .ocio config ";
-                if(filename && *filename)
-                {
-                    os << " '" << filename << "' ";
-                }
-                os << "has no environment section defined. The default behaviour is to ";
-                os << "load all environment variables (" << context_->getNumStringVars() << ")";
-                os << ", which reduces the efficiency of OCIO's caching. Considering ";
-                os << "predefining the environment variables used.";
-                LogDebug(os.str());
-            }
-            
-        }
-        catch( const std::exception & e)
-        {
-            std::ostringstream os;
-            os << "Error: Loading the OCIO profile ";
-            if(filename) os << "'" << filename << "' ";
-            os << "failed. " << e.what();
-            throw Exception(os.str().c_str());
         }
     }
     
@@ -2064,7 +1630,7 @@ OIIO_ADD_TEST(Config, InternalRawProfile)
 {
     std::istringstream is;
     is.str(OCIO::INTERNAL_RAW_PROFILE);
-    OIIO_CHECK_NO_THOW(OCIO::ConstConfigRcPtr config = OCIO::Config::CreateFromStream(is));
+    OIIO_CHECK_NO_THROW(OCIO::ConstConfigRcPtr config = OCIO::Config::CreateFromStream(is));
 }
 
 OIIO_ADD_TEST(Config, SimpleConfig)
@@ -2138,7 +1704,7 @@ OIIO_ADD_TEST(Config, SimpleConfig)
     std::istringstream is;
     is.str(SIMPLE_PROFILE);
     OCIO::ConstConfigRcPtr config;
-    OIIO_CHECK_NO_THOW(config = OCIO::Config::CreateFromStream(is));
+    OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
 }
 
 OIIO_ADD_TEST(Config, Roles)
@@ -2163,7 +1729,7 @@ OIIO_ADD_TEST(Config, Roles)
     std::istringstream is;
     is.str(SIMPLE_PROFILE);
     OCIO::ConstConfigRcPtr config;
-    OIIO_CHECK_NO_THOW(config = OCIO::Config::CreateFromStream(is));
+    OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
     
     OIIO_CHECK_EQUAL(config->getNumRoles(), 3);
     
@@ -2287,9 +1853,7 @@ OIIO_ADD_TEST(Config, SanityCheck)
     std::istringstream is;
     is.str(SIMPLE_PROFILE);
     OCIO::ConstConfigRcPtr config;
-    OIIO_CHECK_NO_THOW(config = OCIO::Config::CreateFromStream(is));
-    
-    OIIO_CHECK_THOW(config->sanityCheck(), OCIO::Exception);
+    OIIO_CHECK_THROW(config = OCIO::Config::CreateFromStream(is), OCIO::Exception);
     }
     
     {
@@ -2309,9 +1873,9 @@ OIIO_ADD_TEST(Config, SanityCheck)
     std::istringstream is;
     is.str(SIMPLE_PROFILE);
     OCIO::ConstConfigRcPtr config;
-    OIIO_CHECK_NO_THOW(config = OCIO::Config::CreateFromStream(is));
+    OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
     
-    OIIO_CHECK_NO_THOW(config->sanityCheck());
+    OIIO_CHECK_NO_THROW(config->sanityCheck());
     }
 }
 
@@ -2330,8 +1894,6 @@ OIIO_ADD_TEST(Config, EnvCheck)
     "colorspaces:\n"
     "  - !<ColorSpace>\n"
     "      name: raw\n"
-    "  - !<ColorSpace>\n"
-    "      name: raw\n"
     "strictparsing: false\n"
     "roles:\n"
     "  default: raw\n"
@@ -2343,8 +1905,6 @@ OIIO_ADD_TEST(Config, EnvCheck)
     std::string SIMPLE_PROFILE2 =
     "ocio_profile_version: 1\n"
     "colorspaces:\n"
-    "  - !<ColorSpace>\n"
-    "      name: raw\n"
     "  - !<ColorSpace>\n"
     "      name: raw\n"
     "strictparsing: false\n"
@@ -2364,13 +1924,12 @@ OIIO_ADD_TEST(Config, EnvCheck)
     std::istringstream is;
     is.str(SIMPLE_PROFILE);
     OCIO::ConstConfigRcPtr config;
-    OIIO_CHECK_NO_THOW(config = OCIO::Config::CreateFromStream(is));
+    OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
     OIIO_CHECK_EQUAL(config->getNumEnvironmentVars(), 5);
     OIIO_CHECK_ASSERT(strcmp(config->getCurrentContext()->resolveStringVar("test${test}"),
         "testbarchedder") == 0);
     OIIO_CHECK_ASSERT(strcmp(config->getCurrentContext()->resolveStringVar("${SHOW}"),
         "bar") == 0);
-    OIIO_CHECK_THOW(config->sanityCheck(), OCIO::Exception);
     OIIO_CHECK_ASSERT(strcmp(config->getEnvironmentVarDefault("SHOW"), "super") == 0);
     
     OCIO::ConfigRcPtr edit = config->createEditableCopy();
@@ -2398,11 +1957,495 @@ OIIO_ADD_TEST(Config, EnvCheck)
     OCIO::SetLoggingLevel(OCIO::LOGGING_LEVEL_DEBUG);
     is.str(SIMPLE_PROFILE2);
     OCIO::ConstConfigRcPtr noenv;
-    OIIO_CHECK_NO_THOW(noenv = OCIO::Config::CreateFromStream(is));
+    OIIO_CHECK_NO_THROW(noenv = OCIO::Config::CreateFromStream(is));
     OIIO_CHECK_ASSERT(strcmp(noenv->getCurrentContext()->resolveStringVar("${TASK}"),
         "lighting") == 0);
     OCIO::SetLoggingLevel(loglevel);
     
+    OIIO_CHECK_EQUAL(edit->getEnvironmentMode(), OCIO::ENV_ENVIRONMENT_LOAD_PREDEFINED);
+    edit->setEnvironmentMode(OCIO::ENV_ENVIRONMENT_LOAD_ALL);
+    OIIO_CHECK_EQUAL(edit->getEnvironmentMode(), OCIO::ENV_ENVIRONMENT_LOAD_ALL);
+    
+    }
+}
+
+OIIO_ADD_TEST(Config, RoleWithoutColorSpace)
+{
+    OCIO::ConfigRcPtr config = OCIO::Config::Create()->createEditableCopy();
+    config->setRole("reference", "UnknownColorSpace");
+
+    std::ostringstream os;
+    OIIO_CHECK_THROW(config->serialize(os), OCIO::Exception);
+}
+
+OIIO_ADD_TEST(Config, Env_colorspace_name)
+{
+    const std::string MY_OCIO_CONFIG =
+        "ocio_profile_version: 1\n"
+        "\n"
+        "search_path: luts\n"
+        "strictparsing: true\n"
+        "luma: [0.2126, 0.7152, 0.0722]\n"
+        "\n"
+        "roles:\n"
+        "  compositing_log: lgh\n"
+        "  default: raw\n"
+        "  scene_linear: lnh\n"
+        "\n"
+        "displays:\n"
+        "  sRGB:\n"
+        "    - !<View> {name: Raw, colorspace: raw}\n"
+        "\n"
+        "active_displays: []\n"
+        "active_views: []\n"
+        "\n"
+        "colorspaces:\n"
+        "  - !<ColorSpace>\n"
+        "    name: raw\n"
+        "    family: \"\"\n"
+        "    equalitygroup: \"\"\n"
+        "    bitdepth: unknown\n"
+        "    isdata: false\n"
+        "    allocation: uniform\n"
+        "\n"
+        "  - !<ColorSpace>\n"
+        "    name: lnh\n"
+        "    family: \"\"\n"
+        "    equalitygroup: \"\"\n"
+        "    bitdepth: unknown\n"
+        "    isdata: false\n"
+        "    allocation: uniform\n"
+        "\n"
+        "  - !<ColorSpace>\n"
+        "    name: lgh\n"
+        "    family: \"\"\n"
+        "    equalitygroup: \"\"\n"
+        "    bitdepth: unknown\n"
+        "    isdata: false\n"
+        "    allocation: uniform\n"
+        "    allocationvars: [-0.125, 1.125]\n"
+        "    from_reference: !<ColorSpaceTransform> {src: raw, dst: $CAMERARAW}\n";
+
+
+    {
+        // Test when the env. variable is missing
+
+        std::istringstream is;
+        is.str(MY_OCIO_CONFIG);
+
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_NO_THROW(config->sanityCheck());
+        OIIO_CHECK_THROW(config->getProcessor("raw", "lgh"), OCIO::Exception);
+    }
+
+    {
+        char * env = (char *)"CAMERARAW=lnh";
+        putenv(env);
+
+        std::istringstream is;
+        is.str(MY_OCIO_CONFIG);
+
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_NO_THROW(config->sanityCheck());
+        OIIO_CHECK_NO_THROW(config->getProcessor("raw", "lgh"));
+    }
+
+    {
+        // Test when the env. variable content is wrong
+
+        char * env = (char *)"CAMERARAW=FaultyColorSpaceName";
+        putenv(env);
+
+        std::istringstream is;
+        is.str(MY_OCIO_CONFIG);
+
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_NO_THROW(config->sanityCheck());
+        OIIO_CHECK_THROW(config->getProcessor("raw", "lgh"), OCIO::Exception);
+    }
+
+    {
+        // Check that the serialization preserves the env. variable
+
+        std::istringstream is;
+        is.str(MY_OCIO_CONFIG);
+
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_NO_THROW(config->sanityCheck());
+
+        std::stringstream ss;
+        ss << *config.get();
+        OIIO_CHECK_EQUAL(ss.str(), MY_OCIO_CONFIG);
+    }
+}
+
+OIIO_ADD_TEST(Config, display)
+{
+    static const std::string SIMPLE_PROFILE_HEADER =
+        "ocio_profile_version: 1\n"
+        "\n"
+        "search_path: luts\n"
+        "strictparsing: true\n"
+        "luma: [0.2126, 0.7152, 0.0722]\n"
+        "\n"
+        "roles:\n"
+        "  default: raw\n"
+        "  scene_linear: lnh\n"
+        "\n"
+        "displays:\n"
+        "  sRGB_1:\n"
+        "    - !<View> {name: Raw, colorspace: raw}\n"
+        "  sRGB_2:\n"
+        "    - !<View> {name: Raw, colorspace: raw}\n"
+        "  sRGB_3:\n"
+        "    - !<View> {name: Raw, colorspace: raw}\n"
+        "\n";
+
+    static const std::string SIMPLE_PROFILE_FOOTER =
+        "\n"
+        "colorspaces:\n"
+        "  - !<ColorSpace>\n"
+        "    name: raw\n"
+        "    family: \"\"\n"
+        "    equalitygroup: \"\"\n"
+        "    bitdepth: unknown\n"
+        "    isdata: false\n"
+        "    allocation: uniform\n"
+        "\n"
+        "  - !<ColorSpace>\n"
+        "    name: lnh\n"
+        "    family: \"\"\n"
+        "    equalitygroup: \"\"\n"
+        "    bitdepth: unknown\n"
+        "    isdata: false\n"
+        "    allocation: uniform\n";
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: []\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(config->getNumDisplays(), 3);
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(0)), std::string("sRGB_1"));
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(1)), std::string("sRGB_2"));
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(2)), std::string("sRGB_3"));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultDisplay()), "sRGB_1");
+    }
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: [sRGB_1]\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(config->getNumDisplays(), 1);
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(0)), std::string("sRGB_1"));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultDisplay()), "sRGB_1");
+    }
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: [sRGB_2, sRGB_1]\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(config->getNumDisplays(), 2);
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(0)), std::string("sRGB_2"));
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(1)), std::string("sRGB_1"));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultDisplay()), "sRGB_2");
+    }
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: []\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        const std::string active_displays(
+            std::string(OCIO::OCIO_ACTIVE_DISPLAYS_ENVVAR) + "= sRGB_3, sRGB_2");
+        putenv(const_cast<char *>(active_displays.c_str()));
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(config->getNumDisplays(), 2);
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(0)), std::string("sRGB_3"));
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(1)), std::string("sRGB_2"));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultDisplay()), "sRGB_3");
+    }
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: [sRGB_2, sRGB_1]\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        const std::string active_displays(
+            std::string(OCIO::OCIO_ACTIVE_DISPLAYS_ENVVAR) + "= sRGB_3, sRGB_2");
+        putenv(const_cast<char *>(active_displays.c_str()));
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(config->getNumDisplays(), 2);
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(0)), std::string("sRGB_3"));
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(1)), std::string("sRGB_2"));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultDisplay()), "sRGB_3");
+    }
+
+    {
+        const std::string active_displays(
+            std::string(OCIO::OCIO_ACTIVE_DISPLAYS_ENVVAR) + "="); // No value
+        putenv(const_cast<char *>(active_displays.c_str()));
+
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: [sRGB_2, sRGB_1]\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(config->getNumDisplays(), 2);
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(0)), std::string("sRGB_2"));
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(1)), std::string("sRGB_1"));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultDisplay()), "sRGB_2");
+    }
+
+    {
+        const std::string active_displays(
+            std::string(OCIO::OCIO_ACTIVE_DISPLAYS_ENVVAR) + "= "); // No value, but misleading space
+        putenv(const_cast<char *>(active_displays.c_str()));
+
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: [sRGB_2, sRGB_1]\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(config->getNumDisplays(), 2);
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(0)), std::string("sRGB_2"));
+        OIIO_CHECK_EQUAL(std::string(config->getDisplay(1)), std::string("sRGB_1"));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultDisplay()), "sRGB_2");
+    }
+}
+
+OIIO_ADD_TEST(Config, view)
+{
+    static const std::string SIMPLE_PROFILE_HEADER =
+        "ocio_profile_version: 1\n"
+        "\n"
+        "search_path: luts\n"
+        "strictparsing: true\n"
+        "luma: [0.2126, 0.7152, 0.0722]\n"
+        "\n"
+        "roles:\n"
+        "  default: raw\n"
+        "  scene_linear: lnh\n"
+        "\n"
+        "displays:\n"
+        "  sRGB_1:\n"
+        "    - !<View> {name: View_1, colorspace: raw}\n"
+        "    - !<View> {name: View_2, colorspace: raw}\n"
+        "  sRGB_2:\n"
+        "    - !<View> {name: View_2, colorspace: raw}\n"
+        "    - !<View> {name: View_3, colorspace: raw}\n"
+        "  sRGB_3:\n"
+        "    - !<View> {name: View_3, colorspace: raw}\n"
+        "    - !<View> {name: View_1, colorspace: raw}\n"
+        "\n";
+
+    static const std::string SIMPLE_PROFILE_FOOTER =
+        "\n"
+        "colorspaces:\n"
+        "  - !<ColorSpace>\n"
+        "    name: raw\n"
+        "    family: \"\"\n"
+        "    equalitygroup: \"\"\n"
+        "    bitdepth: unknown\n"
+        "    isdata: false\n"
+        "    allocation: uniform\n"
+        "\n"
+        "  - !<ColorSpace>\n"
+        "    name: lnh\n"
+        "    family: \"\"\n"
+        "    equalitygroup: \"\"\n"
+        "    bitdepth: unknown\n"
+        "    isdata: false\n"
+        "    allocation: uniform\n";
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: []\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_1")), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 0)), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 1)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_2")), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 0)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 1)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_3")), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 0)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 1)), "View_1");
+    }
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: []\n"
+            "active_views: [View_3]\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_1")), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 0)), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 1)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_2")), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 0)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 1)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_3")), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 0)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 1)), "View_1");
+    }
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: []\n"
+            "active_views: [View_3, View_2, View_1]\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_1")), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 0)), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 1)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_2")), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 0)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 1)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_3")), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 0)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 1)), "View_1");
+    }
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: []\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        const std::string active_displays(
+            std::string(OCIO::OCIO_ACTIVE_VIEWS_ENVVAR) + "= View_3, View_2");
+        putenv(const_cast<char *>(active_displays.c_str()));
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_1")), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 0)), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 1)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_2")), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 0)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 1)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_3")), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 0)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 1)), "View_1");
+    }
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: []\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        const std::string active_displays(
+            std::string(OCIO::OCIO_ACTIVE_VIEWS_ENVVAR) + "="); // No value.
+        putenv(const_cast<char *>(active_displays.c_str()));
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_1")), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 0)), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 1)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_2")), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 0)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 1)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_3")), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 0)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 1)), "View_1");
+    }
+
+    {
+        std::string myProfile = 
+            SIMPLE_PROFILE_HEADER
+            +
+            "active_displays: []\n"
+            "active_views: []\n"
+            + SIMPLE_PROFILE_FOOTER;
+
+        const std::string active_displays(
+            std::string(OCIO::OCIO_ACTIVE_VIEWS_ENVVAR) + "= "); // No value, but misleading space
+        putenv(const_cast<char *>(active_displays.c_str()));
+
+        std::istringstream is(myProfile);
+        OCIO::ConstConfigRcPtr config;
+        OIIO_CHECK_NO_THROW(config = OCIO::Config::CreateFromStream(is));
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_1")), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 0)), "View_1");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_1", 1)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_2")), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 0)), "View_2");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_2", 1)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getDefaultView("sRGB_3")), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 0)), "View_3");
+        OIIO_CHECK_EQUAL(std::string(config->getView("sRGB_3", 1)), "View_1");
     }
 }
 

@@ -5,12 +5,12 @@ Config syntax
 
 OpenColorIO is primarily controlled by a central configuration file,
 usually named ``config.ocio``. This page will only describe how to
-*syntactically* write this OCIO config - e.g what transforms are
+*syntactically* write this OCIO config - e.g. what transforms are
 available, or what sections are optional.
 
 This page alone will not help you to write a useful config file! See
 the :ref:`configurations` section for examples of complete, practical
-configs, and discussion of how they fit within a facitilies workflow.
+configs, and discussion of how they fit within a facilities workflow.
 
 YAML basics
 ***********
@@ -61,8 +61,8 @@ always ``1`` (one)
 
 Optional. Default is an empty search path.
 
-``search_path`` is a colon-seperated list of directories. Each
-directory is checked in order to locate a file (e.g a LUT).
+``search_path`` is a colon-separated list of directories. Each
+directory is checked in order to locate a file (e.g. a LUT).
 
 This works is very similar to how the UNIX ``$PATH`` env-var works for
 executables.
@@ -85,7 +85,7 @@ to the LUT ``lg10_to_lnf.spi1d``. It will look in the ``luts``
 directory, relative to the ``config.ocio`` file's location.
 
 Paths can be relative (to the directory containing ``config.ocio``),
-or absolute (e.g ``/mnt/path/to/my/luts``)
+or absolute (e.g. ``/mnt/path/to/my/luts``)
 
 Multiple paths can be specified, including a mix of relative and
 absolute paths. Each path is separated with a colon ``:``
@@ -130,7 +130,7 @@ If the colorspace cannot be determined and ``strictparsing: false``,
 the default role will be used. This allows unhandled images to operate
 in "non-color managed" mode.
 
-Application authors should note: when no config is present (e.g via
+Application authors should note: when no config is present (e.g. via
 ``$OCIO``), the default internal profile specifies
 ``strictparsing=false``, and the default color space role is
 ``raw``. This means that ANY string passed to OCIO will be parsed as
@@ -148,8 +148,8 @@ Deprecated. Optional. Default is the Rec.709 primaries specified by the ASC:
 
     luma: [0.2126, 0.7152, 0.0722]
 
-These are the luminance coeficients, which can be used by
-OCIO-supporting applications when adjusting saturation (e.g in an
+These are the luminance coefficients, which can be used by
+OCIO-supporting applications when adjusting saturation (e.g. in an
 image-viewer when displaying a single channel)
 
 .. note::
@@ -206,38 +206,38 @@ section.
 A description of all roles. Note that applications may interpret or
 use these differently.
 
-* ``color_picking`` - Colors in a color-selection UI can be displayed
+* ``color_picking`` - colors in a color-selection UI can be displayed
   in this space, while selecting colors in a different working space
-  (e.g ``scene_linear`` or ``texture_paint``)
+  (e.g. ``scene_linear`` or ``texture_paint``)
 
 * ``color_timing`` - colorspace used for applying color corrections,
-  e.g user-specified grade within an image viewer (if the application
+  e.g. user-specified grade within an image viewer (if the application
   uses the ``DisplayTransform::setDisplayCC`` API method)
 
 * ``compositing_log`` - a log colorspace used for certain processing
   operations (plate resizing, pulling keys, degrain, etc). Used by the
-  OCIOLogConvert Nuke node.
+  OCIOLogConvert Nuke node
 
 * ``data`` - used when writing data outputs such as normals, depth
   data, and other "non color" data. The colorspace in this role should
   typically have ``data: true`` specified, so no color transforms are
-  applied.
+  applied
 
 * ``default`` - when ``strictparsing: false``, this colorspace is used
   as a fallback. If not defined, the ``scene_linear`` role is used
 
-* ``matte_paint`` - Colorspace which matte-paintings are created in
+* ``matte_paint`` - colorspace which matte-paintings are created in
   (for more information, :ref:`see the guide on baking ICC profiles
   for Photoshop <userguide-bakelut-photoshop>`, and
   :ref:`config-spivfx`)
 
-* ``reference`` - Colorspace used for reference imagery (e.g sRGB
-  images from the internet)
+* ``reference`` - the colorspace against which the other colorspaces
+  are defined
 
-* ``scene_linear`` - The scene-referred linear-to-light colorspace,
-  typically used as reference space (see :ref:`faq-terminology`)
+* ``scene_linear`` - the scene-referred linear-to-light colorspace,
+  often the same as the reference space (see:ref:`faq-terminology`)
 
-* ``texture_paint`` - Similar to ``matte_paint`` but for painting
+* ``texture_paint`` - similar to ``matte_paint`` but for painting
   textures for 3D objects (see the description of texture painting in
   :ref:`SPI's pipeline <config-spipipeline-texture>`)
 
@@ -337,7 +337,7 @@ visible.
 
 Overridden by the ``OCIO_ACTIVE_VIEWS`` env-var::
 
-    export OCIO_ACTIVE_DISPLAYS="Film:Log:Raw"
+    export OCIO_ACTIVE_VIEWS="Film:Log:Raw"
 
 
 ``looks``
@@ -355,7 +355,7 @@ final grade.
 When the look is defined in the config, you must specify a name, the
 color transform, and the colorspace in which the grade is performed
 (the "process space"). You can optionally specify an inverse transform
-for when the look transform is not trivially invertable (e.g it
+for when the look transform is not trivially invertable (e.g. it
 applies a 3D LUT)
 
 When an application applies a look, OCIO ensures the grade is applied
@@ -540,7 +540,7 @@ apply our 3D LUT on the log-encoded images.
 
 This primarily demonstrates the meta-transform ``GroupTransform``: a
 transform which simply composes two or more transforms together into
-one. Anything that acceptsa transform like ``FileTransform`` or
+one. Anything that accepts a transform like ``FileTransform`` or
 ``CDLTransform`` will also accept a ``GroupTransform``
 
 It is also worth noting the ``ColorSpaceTransform``, which transforms
@@ -583,7 +583,7 @@ colorspace works.
 
 
 To explain how this all ties together to display an image, say we have
-an image in the ``lnf`` colorspace (e.g a linear EXR) and wish to
+an image in the ``lnf`` colorspace (e.g. a linear EXR) and wish to
 convert it to ``srgb8`` - the transform steps are:
 
 * ``ColorSpaceTransform`` is applied, converting from lnf to lg16
@@ -604,11 +604,11 @@ With the image now in the reference space, srgb8's transform is applied:
 
 .. note::
 
-    OCIO has an transform optimiser which removes redunant steps, and
+    OCIO has an transform optimizer which removes redundant steps, and
     combines similar transforms into one operation.
 
     In the previous example, the complete transform chain would be
-    "lg16 -> lnf, lnf -> lg16, lg16 -> srgb8". However the optimiser
+    "lg16 -> lnf, lnf -> lg16, lg16 -> srgb8". However the optimizer
     will reduce this to "lg16 -> srgb".
 
 
@@ -685,7 +685,7 @@ at different bit-depths.
 For example, see the ``lg10`` and ``lg16`` colorspaces in the
 :ref:`config-spivfx` config. If loading a ``lg10`` image and
 converting to ``lg16``, no transform is required. This is of course
-faster, but may cause an unexpected increase in precision (e.g it skip
+faster, but may cause an unexpected increase in precision (e.g. it skip
 potential clamping caused by a LUT)
 
 .. code-block:: yaml

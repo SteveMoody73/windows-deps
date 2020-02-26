@@ -100,7 +100,17 @@ OCIO_NAMESPACE_ENTER
         virtual const char* what() const throw();
         
     private:
+        //Add pragma warnings, STL member is private and not consumed by client of DLL
+        #ifdef _WIN32
+        #pragma warning(push)
+        #pragma warning(disable:4251)
+        #endif // _WIN32
+
         std::string msg_;
+
+        #ifdef _WIN32
+        #pragma warning(pop)
+        #endif // _WIN32
     };
     
     //!cpp:class:: An exception class for errors detected at
@@ -113,9 +123,9 @@ OCIO_NAMESPACE_ENTER
     class OCIOEXPORT ExceptionMissingFile : public Exception
     {
     public:
-        //!cpp:function::
+        //!cpp:function:: Constructor that takes a string as the exception message.
         ExceptionMissingFile(const char *) throw();
-        //!cpp:function::
+        //!cpp:function:: Constructor that takes an existing exception.
         ExceptionMissingFile(const ExceptionMissingFile&) throw();
     };
     
@@ -217,11 +227,11 @@ OCIO_NAMESPACE_ENTER
         // Initialization
         // ^^^^^^^^^^^^^^
         
-        //!cpp:function:: Constructor...ELABORATE
+        //!cpp:function:: Constructor a default empty configuration.
         static ConfigRcPtr Create();
-        //!cpp:function:: 
+        //!cpp:function::  Constructor a configuration using the OCIO environmnet variable.
         static ConstConfigRcPtr CreateFromEnv();
-        //!cpp:function::
+        //!cpp:function:: Constructor a configuration using a specific config file.
         static ConstConfigRcPtr CreateFromFile(const char * filename);
         //!cpp:function::
         static ConstConfigRcPtr CreateFromStream(std::istream & istream);
@@ -279,6 +289,12 @@ OCIO_NAMESPACE_ENTER
         const char * getEnvironmentVarDefault(const char * name) const;
         //!cpp:function::
         void clearEnvironmentVars();
+        //!cpp:function::
+        void setEnvironmentMode(EnvironmentMode mode);
+        //!cpp:function::
+        EnvironmentMode getEnvironmentMode() const;
+        //!cpp:function::
+        void loadEnvironment();
         
         //!cpp:function::
         const char * getSearchPath() const;
@@ -366,7 +382,7 @@ OCIO_NAMESPACE_ENTER
         //
         // Looks is a potentially comma (or colon) delimited list of lookNames,
         // Where +/- prefixes are optionally allowed to denote forward/inverse
-        // look specification. (And forward is assumed in the absense of either)
+        // look specification. (And forward is assumed in the absence of either)
         
         //!cpp:function::
         const char * getDefaultDisplay() const;
@@ -548,7 +564,7 @@ OCIO_NAMESPACE_ENTER
     // and color encoding. Transforming images between different
     // *ColorSpaces* is the primary motivation for this library.
     //
-    // While a complete discussion of colorspaces is beyond the scope of
+    // While a complete discussion of color spaces is beyond the scope of
     // header documentation, traditional uses would be to have *ColorSpaces*
     // corresponding to: physical capture devices (known cameras, scanners),
     // and internal 'convenience' spaces (such as scene linear, logarithmic).
@@ -726,6 +742,11 @@ OCIO_NAMESPACE_ENTER
         ConstTransformRcPtr getInverseTransform() const;
         //!cpp:function:: Setting a transform to a non-null call makes it allowed.
         void setInverseTransform(const ConstTransformRcPtr & transform);
+
+        //!cpp:function::
+        const char * getDescription() const;
+        //!cpp:function::
+        void setDescription(const char * description);
     private:
         Look();
         ~Look();
@@ -881,7 +902,7 @@ OCIO_NAMESPACE_ENTER
     // Baker
     // *****
     // 
-    // In certain situations it is nessary to serilize transforms into a variety
+    // In certain situations it is necessary to serialize transforms into a variety
     // of application specific lut formats. The Baker can be used to create lut
     // formats that ocio supports for writing.
     // 
@@ -950,7 +971,7 @@ OCIO_NAMESPACE_ENTER
         //!cpp:function:: set the looks to be applied during baking
         // Looks is a potentially comma (or colon) delimited list of lookNames,
         // Where +/- prefixes are optionally allowed to denote forward/inverse
-        // look specification. (And forward is assumed in the absense of either)
+        // look specification. (And forward is assumed in the absence of either)
         void setLooks(const char * looks);
         //!cpp:function:: get the looks to be applied during baking
         const char * getLooks() const;
@@ -1144,12 +1165,12 @@ OCIO_NAMESPACE_ENTER
         //!cpp:function::
         ~GpuShaderDesc();
         
-        //!cpp:function::
+        //!cpp:function:: Set the shader program language
         void setLanguage(GpuLanguage lang);
         //!cpp:function::
         GpuLanguage getLanguage() const;
         
-        //!cpp:function::
+        //!cpp:function:: Set the function name of the shader program
         void setFunctionName(const char * name);
         //!cpp:function::
         const char * getFunctionName() const;

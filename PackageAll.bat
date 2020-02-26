@@ -29,6 +29,5 @@ REM
 
 set zip="C:\Program Files\7-Zip\7z.exe"
 
-%zip% a windows-deps-stage-win64-vc140-vN.zip stage\vc140
-%zip% a windows-deps-stage-win64-vc141-vN.zip stage\vc141
-%zip% a windows-deps-stage-win64-vc142-vN.zip stage\vc142
+%zip% a -mx9 windows-deps-win64-vc141.7z stage\vc141
+%zip% a -mx9 windows-deps-win64-vc142.7z stage\vc142

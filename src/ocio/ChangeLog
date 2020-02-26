@@ -1,3 +1,38 @@
+**Version 1.1.1 (March 25 2019):**
+    * Added optional compatibility for building apps with OpenImageIO 1.9+
+    * Added USE_SSE checks to fix Linux build failure
+    * getDisplays() result ordering now matches the active_displays config
+      definition or OCIO_ACTIVE_DISPLAYS env var override.
+    * Fixed incorrect getDefaultDisplay()/getDefaultView() result when
+      OCIO_ACTIVE_DISPLAYS or OCIO_ACTIVE_VIEWS env vars are unset.
+    * Fixed Windows-specific GetEnv() bug
+    * Fixed Windows and MacOS CI failure cases
+    * Updated mail list URLs to aswf.io domain
+
+**Version 1.1.0 (Jan 5 2018):**
+    * libc++ build fixes
+    * Added support for YAML > 5.0.1
+    * YAML and TinyXML patch fixes
+    * Clang visibility fix
+    * Added write support for Truelight LUTs
+    * Improved OCIOYaml
+    * Python string corruption fix
+    * Added support for CDL
+    * Updated documentation
+    * Added args/kwargs support to Python MatrixTransform
+    * Added description field to Look objects
+    * Improved Python 3 compatibility
+    * CSP file read fix
+    * Added Linux, MacOS, and Windows continuos integration
+    * Improved 1D LUT extrapolation
+    * Improved 1D LUT negative handling
+    * Improved Windows build system
+    * Improved cross-platform build system
+    * Undefined role crash fix
+    * After Effects plugin updated
+    * Added reference Photoshop plugin
+    * Added reference Docker image
+
 **Version 1.0.9 (Sep 2 2013):**
     * CDL cccid supports both named id and index lookups
     * ociobakelut / ocioconvert updates

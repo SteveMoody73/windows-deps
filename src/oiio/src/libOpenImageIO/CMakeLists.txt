@@ -131,7 +131,7 @@ target_include_directories (OpenImageIO
                             )
 
 if (NOT BUILD_SHARED_LIBS)
-    target_compile_definitions (OpenImageIO PUBLIC OIIO_STATIC_DEFINE=1)
+    target_compile_definitions (OpenImageIO PUBLIC OIIO_STATIC_DEFINE=1 OpenColorIO_STATIC=1)
 endif ()
 
 target_link_libraries (OpenImageIO

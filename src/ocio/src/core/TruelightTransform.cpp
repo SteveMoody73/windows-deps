@@ -235,7 +235,17 @@ OCIO_NAMESPACE_ENTER
     {
         os << "<TruelightTransform ";
         os << "direction=" << TransformDirectionToString(t.getDirection()) << ", ";
-        os << ">\n";
+        os << "configroot=" << t.getConfigRoot() << ", ";
+        os << "profile=" << t.getProfile() << ", ";
+        os << "camera=" << t.getCamera() << ", ";
+        os << "inputdisplay=" << t.getInputDisplay() << ", ";
+        os << "recorder=" << t.getRecorder() << ", ";
+        os << "print=" << t.getPrint() << ", ";
+        os << "lamp=" << t.getLamp() << ", ";
+        os << "outputcamera=" << t.getOutputCamera() << ", ";
+        os << "display=" << t.getDisplay() << ", ";
+        os << "cubeinput=" << t.getCubeInput();
+        os << ">";
         return os;
     }
     
@@ -291,25 +301,25 @@ OIIO_ADD_TEST(TruelightTransform, simpletest)
     OCIO::ConstProcessorRcPtr tolog;
     
 #ifdef OCIO_TRUELIGHT_SUPPORT
-    OIIO_CHECK_NO_THOW(tosrgb = config->getProcessor("log", "sRGB"));
-    OIIO_CHECK_NO_THOW(tolog = config->getProcessor("sRGB", "log"));
+    OIIO_CHECK_NO_THROW(tosrgb = config->getProcessor("log", "sRGB"));
+    OIIO_CHECK_NO_THROW(tolog = config->getProcessor("sRGB", "log"));
 #else
-    OIIO_CHECK_THOW(tosrgb = config->getProcessor("log", "sRGB"), OCIO::Exception);
-    OIIO_CHECK_THOW(tolog = config->getProcessor("sRGB", "log"), OCIO::Exception);
+    OIIO_CHECK_THROW(tosrgb = config->getProcessor("log", "sRGB"), OCIO::Exception);
+    OIIO_CHECK_THROW(tolog = config->getProcessor("sRGB", "log"), OCIO::Exception);
 #endif
     
 #ifdef OCIO_TRUELIGHT_SUPPORT
     float input[3] = {0.5f, 0.5f, 0.5f};
     float output[3] = {0.500098f, 0.500317f, 0.501134f};
-    OIIO_CHECK_NO_THOW(tosrgb->applyRGB(input));
-    OIIO_CHECK_NO_THOW(tolog->applyRGB(input));
+    OIIO_CHECK_NO_THROW(tosrgb->applyRGB(input));
+    OIIO_CHECK_NO_THROW(tolog->applyRGB(input));
     OIIO_CHECK_CLOSE(input[0], output[0], 1e-4);
     OIIO_CHECK_CLOSE(input[1], output[1], 1e-4);
     OIIO_CHECK_CLOSE(input[2], output[2], 1e-4);
 #endif
     
     std::ostringstream os;
-    OIIO_CHECK_NO_THOW(config->serialize(os));
+    OIIO_CHECK_NO_THROW(config->serialize(os));
     
     std::string referenceconfig =
     "ocio_profile_version: 1\n"
@@ -358,7 +368,7 @@ OIIO_ADD_TEST(TruelightTransform, simpletest)
     std::istringstream is;
     is.str(referenceconfig);
     OCIO::ConstConfigRcPtr rtconfig;
-    OIIO_CHECK_NO_THOW(rtconfig = OCIO::Config::CreateFromStream(is));
+    OIIO_CHECK_NO_THROW(rtconfig = OCIO::Config::CreateFromStream(is));
     
 }
 

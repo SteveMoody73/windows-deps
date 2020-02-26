@@ -1,9 +1,9 @@
 
 include_directories(
-  ${JNI_INCLUDE_DIRS}
   ${CMAKE_CURRENT_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}/export/
   ${CMAKE_BINARY_DIR}/export/
+  ${JNI_INCLUDE_DIRS}
 )
 
 set(JNIOCIO_CLASSES
@@ -89,5 +89,5 @@ endif()
 
 add_subdirectory(tests)
 
-install(TARGETS OpenColorIO-JNI DESTINATION ${CMAKE_INSTALL_EXEC_PREFIX}/lib${LIB_SUFFIX})
+install(TARGETS OpenColorIO-JNI EXPORT OpenColorIO DESTINATION ${CMAKE_INSTALL_EXEC_PREFIX}/lib${LIB_SUFFIX})
 install(FILES ${JNIOCIO_JAR} DESTINATION ${CMAKE_INSTALL_PREFIX}/share/ocio/)

@@ -30,7 +30,6 @@
 */
 
 
-#include <algorithm>
 #include <cstring>
 #include <cctype>
 #include <cassert>
@@ -38,6 +37,7 @@
 #include <iostream>
 #include <cstdarg>
 #include <iterator>
+#include <algorithm>
 
 #include "strutil.h"
 #include "argparse.h"

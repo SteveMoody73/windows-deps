@@ -26,6 +26,7 @@ find_library (OPENCOLORIO_LIBRARY
     NAMES OCIO OpenColorIO
     HINTS
         ${OPENCOLORIO_LIBRARY_PATH}
+        "${OPENCOLORIO_LIBRARY_PATH}/static"
         ENV OPENCOLORIO_LIBRARY_PATH
     PATHS
         /usr/lib64
@@ -53,6 +54,14 @@ if (OpenColorIO_FOUND AND LINKSTATIC)
     find_library (YAML_LIBRARY NAMES yaml-cpp)
     if (YAML_LIBRARY)
         set (OPENCOLORIO_LIBRARIES "${OPENCOLORIO_LIBRARIES};${YAML_LIBRARY}" CACHE STRING "" FORCE)
+    endif ()
+    find_library (YAML_LIBRARY_MDD NAMES libyaml-cppmdd)
+    if (YAML_LIBRARY_MD)
+        set (OPENCOLORIO_LIBRARIES "${OPENCOLORIO_LIBRARIES};${YAML_LIBRARY_MDD}" CACHE STRING "" FORCE)
+    endif ()
+    find_library (YAML_LIBRARY_MD NAMES libyaml-cppmd)
+    if (YAML_LIBRARY_MD)
+        set (OPENCOLORIO_LIBRARIES "${OPENCOLORIO_LIBRARIES};${YAML_LIBRARY_MD}" CACHE STRING "" FORCE)
     endif ()
     find_library (LCMS2_LIBRARY NAMES lcms2)
     if (LCMS2_LIBRARY)

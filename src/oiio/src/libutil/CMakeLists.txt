@@ -25,7 +25,7 @@ endif()
 
 target_compile_definitions (OpenImageIO_Util PRIVATE OpenImageIO_EXPORTS)
 if (NOT BUILD_SHARED_LIBS)
-    target_compile_definitions (OpenImageIO_Util PUBLIC OIIO_STATIC_DEFINE=1)
+    target_compile_definitions (OpenImageIO_Util PUBLIC OIIO_STATIC_DEFINE=1 OpenColorIO_STATIC=1)
 endif ()
 
 if (VERBOSE)

@@ -47,7 +47,8 @@ namespace
     
     void GetAbsoluteSearchPaths(std::vector<std::string> & searchpaths,
                                 const std::string & pathString,
-                                const std::string & configRootDir);
+                                const std::string & configRootDir,
+                                const EnvMap & map);
 }
     
     class Context::Impl
@@ -321,7 +322,8 @@ namespace
         std::vector<std::string> searchpaths;
         GetAbsoluteSearchPaths(searchpaths,
                                getImpl()->searchPath_,
-                               getImpl()->workingDir_);
+                               getImpl()->workingDir_,
+                               getImpl()->envMap_);
         
         // Loop over each path, and try to find the file
         std::ostringstream errortext;
@@ -348,12 +350,17 @@ namespace
 
     std::ostream& operator<< (std::ostream& os, const Context& context)
     {
-        os << "Context:\n";
+        os << "<Context";
+        os << " searchPath=" << context.getSearchPath();
+        os << ", workingDir=" << context.getWorkingDir();
+        os << ", environmentMode=" << EnvironmentModeToString(context.getEnvironmentMode());
+        os << ", environment=";
         for(int i=0; i<context.getNumStringVars(); ++i)
         {
             const char * key = context.getStringVarNameByIndex(i);
-            os << key << "=" << context.getStringVar(key) << "\n";
+            os << "\n\t" << key << ": " << context.getStringVar(key);
         }
+        os << ">";
         return os;
     }
     
@@ -362,7 +369,8 @@ namespace
 {
     void GetAbsoluteSearchPaths(std::vector<std::string> & searchpaths,
                                 const std::string & pathString,
-                                const std::string & workingDir)
+                                const std::string & workingDir,
+                                const EnvMap & map)
     {
         if(pathString.empty())
         {
@@ -375,8 +383,11 @@ namespace
         
         for (unsigned int i = 0; i < parts.size(); ++i)
         {
+            // Expand variables incase the expansion adds slashes
+            std::string expanded = EnvExpand(parts[i], map);
+
             // Remove trailing "/", and spaces
-            std::string dirname = pystring::rstrip(pystring::strip(parts[i]), "/");
+            std::string dirname = pystring::rstrip(pystring::strip(expanded), "/");
             
             if(!pystring::os::path::isabs(dirname))
             {
@@ -398,31 +409,66 @@ OCIO_NAMESPACE_EXIT
 
 namespace OCIO = OCIO_NAMESPACE;
 #include "UnitTest.h"
+#include <algorithm>
 
 #ifdef OCIO_SOURCE_DIR
 
 #define _STR(x) #x
 #define STR(x) _STR(x)
 
+#ifdef WINDOWS
+    // FIXME: On Windows remove the 'C:' from the absolute path as the ':' is
+    //        used for the search path delimiter. The selected character
+    //        is problematic on Windows.
+    static const std::string ociodir(&std::string(STR(OCIO_SOURCE_DIR)).c_str()[2]);
+
+    // Method to avoid using boost filesystem library to compare paths
+    std::string sanatizepath(const char* path)
+    {
+        std::string s(path);
+        std::replace(s.begin(), s.end(), '\\', '/');
+        return s;
+    }
+#else
+    static const std::string ociodir(STR(OCIO_SOURCE_DIR));
+    std::string sanatizepath(const char* path)
+    {
+        return std::string(path);
+    }
+#endif
+    static const std::string contextpath(ociodir+std::string("/src/core/Context.cpp"));
+
 OIIO_ADD_TEST(Context, ABSPath)
 {
-    
     OCIO::ContextRcPtr con = OCIO::Context::Create();
-    con->setSearchPath(STR(OCIO_SOURCE_DIR));
+    con->setSearchPath(ociodir.c_str());
     
     con->setStringVar("non_abs", "src/core/Context.cpp");
-    con->setStringVar("is_abs", STR(OCIO_SOURCE_DIR) "/src/core/Context.cpp");
+    con->setStringVar("is_abs", contextpath.c_str());
     
-    OIIO_CHECK_NO_THOW(con->resolveFileLocation("${non_abs}"));
-    OIIO_CHECK_ASSERT(strcmp(con->resolveFileLocation("${non_abs}"),
-        STR(OCIO_SOURCE_DIR) "/src/core/Context.cpp") == 0);
+    OIIO_CHECK_NO_THROW(con->resolveFileLocation("${non_abs}"));
+
+    OIIO_CHECK_ASSERT(strcmp(sanatizepath(con->resolveFileLocation("${non_abs}")).c_str(), 
+                                            contextpath.c_str()) == 0);
     
-    OIIO_CHECK_NO_THOW(con->resolveFileLocation("${is_abs}"));
-    OIIO_CHECK_ASSERT(strcmp(con->resolveFileLocation("${is_abs}"),
-        STR(OCIO_SOURCE_DIR) "/src/core/Context.cpp") == 0);
-    
+    OIIO_CHECK_NO_THROW(con->resolveFileLocation("${is_abs}"));
+    OIIO_CHECK_ASSERT(strcmp(con->resolveFileLocation("${is_abs}"), contextpath.c_str()) == 0);
+   
 }
 
-#endif // OCIO_BINARY_DIR
+OIIO_ADD_TEST(Context, VarSearchPath)
+{
+    OCIO::ContextRcPtr context = OCIO::Context::Create();
+
+    context->setStringVar("SOURCE_DIR", ociodir.c_str());
+    context->setSearchPath("${SOURCE_DIR}/src/core");
+
+    OIIO_CHECK_NO_THROW(context->resolveFileLocation("Context.cpp"));
+    OIIO_CHECK_ASSERT(strcmp(sanatizepath(context->resolveFileLocation("Context.cpp")).c_str(), 
+                                contextpath.c_str()) == 0);
+
+}
+
+#endif // OCIO_SOURCE_DIR
 
 #endif // OCIO_UNIT_TEST

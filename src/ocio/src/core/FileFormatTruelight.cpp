@@ -28,7 +28,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <cstdio>
 #include <iostream>
+#include <iomanip>
 #include <iterator>
+#include <algorithm>
 
 #include <OpenColorIO/OpenColorIO.h>
 
@@ -90,6 +92,10 @@ OCIO_NAMESPACE_ENTER
             
             virtual CachedFileRcPtr Read(std::istream & istream) const;
             
+            virtual void Write(const Baker & baker,
+                               const std::string & formatName,
+                               std::ostream & ostream) const;
+            
             virtual void BuildFileOps(OpRcPtrVec & ops,
                          const Config& config,
                          const ConstContextRcPtr & context,
@@ -103,7 +109,7 @@ OCIO_NAMESPACE_ENTER
             FormatInfo info;
             info.name = "truelight";
             info.extension = "cub";
-            info.capabilities = FORMAT_CAPABILITY_READ;
+            info.capabilities = (FORMAT_CAPABILITY_READ | FORMAT_CAPABILITY_WRITE);
             formatInfoVec.push_back(info);
         }
         
@@ -287,6 +293,69 @@ OCIO_NAMESPACE_ENTER
             
             return cachedFile;
         }
+
+
+        void
+        LocalFileFormat::Write(const Baker & baker,
+                               const std::string & /*formatName*/,
+                               std::ostream & ostream) const
+        {
+            const int DEFAULT_CUBE_SIZE = 32;
+            const int DEFAULT_SHAPER_SIZE = 1024;
+
+            ConstConfigRcPtr config = baker.getConfig();
+            
+            int cubeSize = baker.getCubeSize();
+            if (cubeSize==-1) cubeSize = DEFAULT_CUBE_SIZE;
+            cubeSize = std::max(2, cubeSize); // smallest cube is 2x2x2
+
+            std::vector<float> cubeData;
+            cubeData.resize(cubeSize*cubeSize*cubeSize*3);
+            GenerateIdentityLut3D(&cubeData[0], cubeSize, 3, LUT3DORDER_FAST_RED);
+            PackedImageDesc cubeImg(&cubeData[0], cubeSize*cubeSize*cubeSize, 1, 3);
+            
+            // Apply processor to lut data
+            ConstProcessorRcPtr inputToTarget;
+            inputToTarget = config->getProcessor(baker.getInputSpace(), baker.getTargetSpace());
+            inputToTarget->apply(cubeImg);
+            
+            int shaperSize = baker.getShaperSize();
+            if (shaperSize==-1) shaperSize = DEFAULT_SHAPER_SIZE;
+            shaperSize = std::max(2, shaperSize); // smallest shaper is 2x2x2
+
+
+            // Write the header
+            ostream << "# Truelight Cube v2.0\n";
+            ostream << "# lutLength " << shaperSize << "\n";
+            ostream << "# iDims     3\n";
+            ostream << "# oDims     3\n";
+            ostream << "# width     " << cubeSize << " " << cubeSize << " " << cubeSize << "\n";
+            ostream << "\n";
+
+
+            // Write the shaper lut
+            // (We are just going to use a unity lut)
+            ostream << "# InputLUT\n";
+            ostream << std::setprecision(6) << std::fixed;
+            float v = 0.0f;
+            for (int i=0; i < shaperSize-1; i++)
+            {
+                v = ((float)i / (float)(shaperSize-1)) * (float)(cubeSize-1);
+                ostream << v << " " << v << " " << v << "\n";
+            }
+            v = (float) (cubeSize-1);
+            ostream << v << " " << v << " " << v << "\n"; // ensure that the last value is spot on
+            ostream << "\n";
+
+            // Write the cube
+            ostream << "# Cube\n";
+            for (int i=0; i<cubeSize*cubeSize*cubeSize; ++i)
+            {
+                ostream << cubeData[3*i+0] << " " << cubeData[3*i+1] << " " << cubeData[3*i+2] << "\n";
+            }
+            
+            ostream << "# end\n";
+        }
         
         void
         LocalFileFormat::BuildFileOps(OpRcPtrVec & ops,
@@ -422,7 +491,7 @@ OIIO_ADD_TEST(FileFormatTruelight, ShaperAndLut3D)
     // Read file
     OCIO::LocalFileFormat tester;
     OCIO::CachedFileRcPtr cachedFile;
-    OIIO_CHECK_NO_THOW(cachedFile = tester.Read(lutIStream));
+    OIIO_CHECK_NO_THROW(cachedFile = tester.Read(lutIStream));
     OCIO::LocalCachedFileRcPtr lut = OCIO::DynamicPtrCast<OCIO::LocalCachedFile>(cachedFile);
     
     OIIO_CHECK_ASSERT(lut->has1D);
@@ -490,7 +559,7 @@ OIIO_ADD_TEST(FileFormatTruelight, Shaper)
     // Read file
     OCIO::LocalFileFormat tester;
     OCIO::CachedFileRcPtr cachedFile;
-    OIIO_CHECK_NO_THOW(cachedFile = tester.Read(lutIStream));
+    OIIO_CHECK_NO_THROW(cachedFile = tester.Read(lutIStream));
     
     OCIO::LocalCachedFileRcPtr lut = OCIO::DynamicPtrCast<OCIO::LocalCachedFile>(cachedFile);
     
@@ -577,7 +646,7 @@ OIIO_ADD_TEST(FileFormatTruelight, Lut3D)
     // Read file
     OCIO::LocalFileFormat tester;
     OCIO::CachedFileRcPtr cachedFile;
-    OIIO_CHECK_NO_THOW(cachedFile = tester.Read(lutIStream));
+    OIIO_CHECK_NO_THROW(cachedFile = tester.Read(lutIStream));
     OCIO::LocalCachedFileRcPtr lut = OCIO::DynamicPtrCast<OCIO::LocalCachedFile>(cachedFile);
     
     OIIO_CHECK_ASSERT(!lut->has1D);

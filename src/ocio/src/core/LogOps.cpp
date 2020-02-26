@@ -26,10 +26,10 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <algorithm>
 
 #include <OpenColorIO/OpenColorIO.h>
 
@@ -301,7 +301,7 @@ OCIO_NAMESPACE_ENTER
                 
                 float knew[3] = { m_k[0] / logf(m_base[0]),
                                   m_k[1] / logf(m_base[1]),
-                                  m_k[2] / logf(m_base[0]) };
+                                  m_k[2] / logf(m_base[2]) };
                 
                 float clampMin[3] = { FLTMIN, FLTMIN, FLTMIN };
                 
